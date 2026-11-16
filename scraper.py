@@ -1,0 +1,745 @@
+import os
+import time
+import re
+import requests
+import pandas as pd
+from bs4 import BeautifulSoup
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+try:
+    from ddgs import DDGS
+    DDGS_DISPONIBLE = True
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+        DDGS_DISPONIBLE = True
+    except ImportError:
+        DDGS_DISPONIBLE = False
+        print("⚠️ Moteur web manquant. Lance dans le terminal : pip install ddgs duckduckgo-search")
+
+# ==============================================================================
+# 1. RÉFÉRENTIEL COMPLET (TOUTES LES MAISONS, GROUPES & MANUFACTURES)
+# ==============================================================================
+
+MAISONS_ET_MANUFACTURES = [
+    # Groupes & Maisons Couture, Textile, Maroquinerie
+    "hermès", "hermes", "lvmh", "louis vuitton", "christian dior", "dior",
+    "chanel", "kering", "gucci", "saint laurent", "yves saint laurent", "bottega veneta",
+    "balenciaga", "celine", "loewe", "givenchy", "guerlain", "fendi", "loro piana",
+    "berluti", "moynat", "goyard", "delvaux", "longchamp", "prada", "miu miu",
+    "moncler", "brunello cucinelli", "zegna", "ermenegildo zegna", "giorgio armani",
+    "armani", "valentino", "salvatore ferragamo", "ferragamo", "tod's", "tods",
+    "lanvin", "chloé", "chloe", "alaïa", "alaia", "isabel marant", "jacquemus",
+    "maison margiela", "richemont", "puig", "kenzo", "emilio pucci", "marc jacobs",
+    "patou", "rimowa", "brioni", "alexander mcqueen", "stella mccartney",
+    "gruppo florence", "minerva hub", "maroquinerie thomas", "simone", "tolomei",
+    # Horlogerie & Manufactures
+    "rolex", "tudor", "patek philippe", "audemars piguet", "richard mille",
+    "cartier", "omega", "swatch group", "breguet", "blancpain", "longines",
+    "tissot", "breitling", "tag heuer", "hublot", "zenith", "vacheron constantin",
+    "jaeger-lecoultre", "jaeger lecoultre", "iwc", "panerai", "piaget",
+    "chopard", "girard-perregaux", "ulysse nardin", "parmigiani", "h. moser",
+    "roger dubuis", "baume & mercier", "franck muller", "frederique constant",
+    "montblanc", "van cleef & arpels", "glashütte original", "rado", "mido", "hamilton",
+    "acrotec", "sellita", "soprod", "la joux-perret", "vaucher manufacture",
+    "kenissi", "etasa", "nivarox", "universo", "rubattel",
+    # Joaillerie & Bijouterie
+    "van cleef", "boucheron", "chaumet", "bulgari", "bvlgari", "tiffany",
+    "fred", "messika", "pomellato", "dinh van", "mauboussin", "buccellati",
+    "damiani", "repossi", "qeelin", "graff", "harry winston", "de beers"
+]
+
+MOTS_TITRE_DIRECTION = [
+    "directeur", "directrice", "director", "head of", "vp ", "vice president",
+    "vice-president", "coo", "chief operating", "direttore"
+]
+
+MOTS_METIER_OPERATIONS = [
+    "opérations", "operations", "supply chain", "supply", "manufacture", "manufacturing",
+    "atelier", "industriel", "industrial", "production", "produzione", "s&op",
+    "excellence opérationnelle", "operational excellence",
+    "transformation industrielle", "industrial transformation", "trasformazione industriale",
+    "logistique", "logistics", "sourcing", "achats", "procurement", "planning"
+]
+
+MOTS_INTENTION_RECRUTEMENT = [
+    "recrute", "recrutons", "recrutement", "rejoignez", "rejoindre",
+    "opportunité", "opportunite", "poste à pourvoir", "poste a pourvoir",
+    "candidature", "cv", "hiring", "we are hiring", "looking for",
+    "join our team", "join us", "open role", "job opening", "apply",
+    "cercasi", "ricerca", "offerta di lavoro", "candidati"
+]
+
+MOTS_EXCLUSION_POSTS = [
+    "interview", "accueille", "nomination", "félicitations", "felicitations",
+    "bienvenue", "welcome", "ravi d'annoncer", "pleased to announce",
+    "retour sur", "conférence", "conference", "webinar", "podcast", "article",
+    "découvrez l'interview", "decouvrez l'interview"
+]
+
+MOTS_EXCLUSION_TITRE = [
+    "stage", "stagiaire", "intern", "alternance", "apprentissage", "assistant",
+    "adjoint", "junior", "technicien", "opérateur", "operateur", "chef de projet",
+    "project manager", "coordinateur", "coordinator", "analyste", "analyst",
+    "vendeur", "conseiller", "boutique", "store", "retail", "visual merchandiser",
+    "chargé de", "charge de", "gestionnaire", "planificateur",
+    "hotel", "hôtel", "hotellerie", "hôtellerie", "resort", "hospitality",
+    "hr ", "human resources", "ressources humaines", "payroll", "paie",
+    "crm", "loyalty", "fidélité", "sûreté", "surete", "sécurité", "securite", "hse",
+    "marketing", "communication", "digital", "e-commerce", "ecommerce",
+    "finance", "financial", "comptab", "legal", "juridique", "it ",
+    "customer service", "client service", "offres d'emploi", "offres d’emploi",
+    "toutes les offres", "ricerca lavoro", "jobs in "
+]
+
+ENTREPRISES_EXCLUES = [
+    "hotel", "hôtel", "resorts", "hospitality", "visilab", "randstad",
+    "adecco", "manpower", "synergie", "kritter", "proman"
+]
+
+
+# ==============================================================================
+# 2. VÉRIFICATION DU PAYS, DES LIENS & CLASSIFICATION DU NIVEAU
+# ==============================================================================
+
+def verifier_pays_strict(texte, pays_api=None, lien=""):
+    if pays_api:
+        p = str(pays_api).lower()
+        if "france" in p:
+            return "France"
+        if "switzerland" in p or "suisse" in p:
+            return "Suisse"
+        if "italy" in p or "italia" in p or "italie" in p:
+            return "Italie"
+
+    t = f"{texte} {lien}".lower()
+
+    mots_suisse = [
+        "suisse", "switzerland", "svizzera", "schweiz", ".ch/", "ch.linkedin.com",
+        "genève", "geneva", "zurich", "zürich", "lausanne", "neuchâtel", "neuchatel",
+        "bienne", "biel", "schaffhausen", "le brassus", "plan-les-ouates",
+        "la chaux-de-fonds", "le locle", "nyon", "meyrin", "zug", "basel", "bâle",
+        "val de travers", "jura bernois", "fribourg", "vaud", "carouge", "versoix",
+        "saint-imier", "grenchen", "granges", "solothurn", "soleure", "mendrisio"
+    ]
+    mots_italie = [
+        "italie", "italy", "italia", ".it/", "it.linkedin.com",
+        "milan", "milano", "florence", "firenze", "rome", "roma",
+        "turin", "torino", "vicenza", "valenza", "bologna", "padova", "venezia",
+        "scandicci", "novara", "biella", "varese", "como", "côme", "arezzo", "napoli"
+    ]
+    mots_france = [
+        "france", ".fr/", "fr.linkedin.com",
+        "paris", "lyon", "bordeaux", "besançon", "besancon", "annecy",
+        "marseille", "île-de-france", "ile-de-france", "neuilly", "boulogne",
+        "nantes", "lille", "clermont-ferrand", "pantin", "romans-sur-isère",
+        "saint-étienne", "val-de-reuil", "issoudun", "orléans", "tours"
+    ]
+
+    if any(m in t for m in mots_suisse):
+        return "Suisse"
+    if any(m in t for m in mots_italie):
+        return "Italie"
+    if any(m in t for m in mots_france):
+        return "France"
+
+    return None
+
+
+def classer_niveau(titre):
+    t = str(titre).lower()
+    if any(x in t for x in [
+        "coo", "chief operating officer", "vp ", "vice president",
+        "vice-president", "chief operations", "chief supply chain"
+    ]):
+        return "Direction exécutive"
+    if any(x in t for x in [
+        "directeur des opérations", "director of operations",
+        "directeur supply chain", "director supply chain",
+        "head of operations", "head of supply chain",
+        "directeur de manufacture", "directeur d'atelier",
+        "plant director", "manufacturing director",
+        "industrial director", "direttore di stabilimento"
+    ]):
+        return "Direction fonctionnelle"
+    if any(x in t for x in [
+        "senior manager", "manager", "responsable",
+        "directeur", "director", "head of", "direttore"
+    ]):
+        return "Management senior"
+    return "Hors cible"
+
+
+def est_lien_post_direct(lien):
+    """Vérifie que le lien mène directement vers un post LinkedIn, et JAMAIS vers un profil (/in/)."""
+    l = str(lien).lower()
+    if "/in/" in l or "/company/" in l or "/jobs/" in l or "/pulse/" in l:
+        return False
+    return ("linkedin.com/posts/" in l) or ("linkedin.com/feed/update/" in l)
+
+
+# ==============================================================================
+# 3. VALIDATION STRICTE & DÉTECTION AUTOMATIQUE DE TOUTES LES MAISONS
+# ==============================================================================
+
+def detecter_maison_exacte(texte_complet, lien="", fallback="Maison de Luxe"):
+    """Identifie la Maison exacte parmi tout le référentiel ou depuis le nom de domaine."""
+    tout = f"{texte_complet} {lien}".lower()
+
+    groupes_generiques = {"lvmh", "kering", "richemont", "swatch group", "puig"}
+    for maison in MAISONS_ET_MANUFACTURES:
+        if maison not in groupes_generiques and re.search(rf"\b{re.escape(maison)}\b", tout):
+            return maison.title()
+
+    for groupe in groupes_generiques:
+        if re.search(rf"\b{re.escape(groupe)}\b", tout):
+            return groupe.upper() if groupe in {"lvmh"} else groupe.title()
+
+    match_domaine = re.search(r"https?://(?:www\.|careers\.|jobs\.|talents\.|join\.)?([a-z0-9-]+)\.", str(lien).lower())
+    if match_domaine:
+        nom_dom = match_domaine.group(1)
+        if nom_dom not in {"linkedin", "myworkdayjobs", "smartrecruiters", "greenhouse", "lever", "michaelpage", "robertwalters", "hays", "luxetalent", "fedsupply"}:
+            return nom_dom.replace("-", " ").title()
+
+    return fallback
+
+
+def valider_et_classer_offre(titre, entreprise, contexte="", est_post=False, lien=""):
+    titre_low = str(titre).lower()
+    ent_low = str(entreprise).lower()
+    tout_low = f"{titre} {entreprise} {contexte}".lower()
+
+    if any(ex in ent_low for ex in ENTREPRISES_EXCLUES):
+        return None
+
+    if any(ex in titre_low for ex in MOTS_EXCLUSION_TITRE):
+        return None
+
+    if est_post:
+        if lien and not est_lien_post_direct(lien):
+            return None
+        if any(ex in tout_low for ex in MOTS_EXCLUSION_POSTS):
+            return None
+        if not any(rec in tout_low for rec in MOTS_INTENTION_RECRUTEMENT):
+            return None
+
+    zone_analyse = tout_low if est_post else titre_low
+    niveau = classer_niveau(tout_low if est_post else titre)
+
+    if est_post:
+        a_niveau_direction = niveau != "Hors cible"
+    else:
+        a_niveau_direction = niveau in ["Direction exécutive", "Direction fonctionnelle", "Management senior"]
+
+    a_metier_cible = any(m in zone_analyse for m in MOTS_METIER_OPERATIONS)
+
+    if not (a_niveau_direction and a_metier_cible):
+        return None
+
+    secteurs = []
+
+    if any(m in tout_low for m in [
+        "horloger", "watchmaking", "orolog", "rolex", "tudor", "patek", "audemars",
+        "omega", "swatch", "breitling", "tag heuer", "hublot", "zenith",
+        "vacheron", "jaeger", "iwc", "panerai", "richard mille", "breguet",
+        "blancpain", "longines", "parmigiani", "acrotec", "sellita", "soprod",
+        "kenissi", "vaucher", "glashütte", "rado", "mido", "hamilton", "tissot"
+    ]):
+        secteurs.append("Horlogerie")
+
+    if any(m in tout_low for m in [
+        "joaill", "bijou", "jewelry", "jewellery", "gioiell", "haute joaillerie",
+        "van cleef", "boucheron", "chaumet", "bulgari", "bvlgari", "tiffany",
+        "fred", "messika", "pomellato", "dinh van", "mauboussin", "buccellati",
+        "damiani", "repossi", "qeelin", "graff", "harry winston"
+    ]):
+        secteurs.append("Joaillerie / Bijouterie")
+
+    if any(m in tout_low for m in [
+        "textile", "couture", "haute couture", "maroquinerie", "pelletteria",
+        "leather goods", "prêt-à-porter", "pret-a-porter", "soie", "cachemire",
+        "hermès", "hermes", "chanel", "dior", "louis vuitton", "gucci", "prada",
+        "moncler", "saint laurent", "bottega veneta", "balenciaga", "celine",
+        "loewe", "loro piana", "brunello cucinelli", "zegna", "armani", "valentino",
+        "fendi", "longchamp", "gruppo florence", "minerva hub", "maroquinerie thomas",
+        "delvaux", "goyard", "moynat", "berluti", "jacquemus", "isabel marant", "chloé", "alaïa"
+    ]):
+        secteurs.append("Textile / Couture")
+
+    if any(m in tout_low for m in [
+        "luxe", "luxury", "lusso", "artisanat d'art", "artisanat d'exception",
+        "lvmh", "kering", "richemont", "cartier", "chopard", "piaget", "guerlain", "puig"
+    ]) or any(maison in ent_low for maison in MAISONS_ET_MANUFACTURES):
+        if "Luxe" not in secteurs:
+            secteurs.append("Luxe")
+
+    if not secteurs:
+        return None
+
+    return ", ".join(secteurs)
+
+
+def deduire_source(lien, source_actuelle=""):
+    s = str(source_actuelle)
+    if s in ["LinkedIn (Offres)", "LinkedIn (Posts)", "Sites Maisons de Luxe", "Cabinets de Recrutement", "Approche directe / Réseau"]:
+        return s
+    l = str(lien).lower()
+    if "linkedin.com/posts" in l or "linkedin.com/feed/update" in l:
+        return "LinkedIn (Posts)"
+    if "linkedin.com/jobs" in l:
+        return "LinkedIn (Offres)"
+    cabinets = ["michaelpage", "robertwalters", "luxetalent", "hays", "fedsupply", "pagepersonnel"]
+    if any(c in l for c in cabinets):
+        return "Cabinets de Recrutement"
+    return "Sites Maisons de Luxe"
+
+
+# ==============================================================================
+# 4A. SOURCE 1 : LINKEDIN OFFRES DIRECT (SANS RAPIDAPI NI CLÉ API)
+# ==============================================================================
+
+def fetch_linkedin_jobs():
+    """Récupère les offres LinkedIn gratuitement via l'endpoint public jobs-guest."""
+    url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"
+    }
+
+    recherches = [
+        ("France", "Directeur Operations Luxe"),
+        ("France", "Directeur Supply Chain Luxe"),
+        ("France", "Directeur Manufacture Horlogerie"),
+        ("France", "Head of Operations Luxury"),
+        ("Switzerland", "Director Operations Luxury Watchmaking"),
+        ("Switzerland", "Directeur Operations Horlogerie"),
+        ("Switzerland", "Head of Supply Chain Watchmaking"),
+        ("Switzerland", "Directeur Manufacture"),
+        ("Italy", "Direttore Operations Lusso"),
+        ("Italy", "Supply Chain Director Luxury Fashion"),
+        ("Italy", "Direttore Produzione Moda Pelletteria")
+    ]
+
+    offres = []
+    liens_vus = set()
+
+    for pays_recherche, mots_cles in recherches:
+        print(f"⏳ [LinkedIn Direct] Scan : {mots_cles} ({pays_recherche})...")
+        params = {
+            "keywords": mots_cles,
+            "location": pays_recherche,
+            "f_TPR": "r2592000",  # 30 derniers jours (r604800 pour 7 jours)
+            "start": 0
+        }
+        try:
+            resp = requests.get(url, params=params, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                print(f"⚠️ LinkedIn a ralenti la requête ({resp.status_code}), pause...")
+                time.sleep(4)
+                continue
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+            cartes = soup.find_all("div", class_="base-card")
+
+            for carte in cartes:
+                titre_el = carte.find("h3", class_="base-search-card__title")
+                ent_el = carte.find("h4", class_="base-search-card__subtitle")
+                loc_el = carte.find("span", class_="job-search-card__location")
+                lien_el = carte.find("a", class_="base-card__full-link")
+
+                if not (titre_el and ent_el and lien_el):
+                    continue
+
+                titre = titre_el.get_text(strip=True)
+                entreprise = ent_el.get_text(strip=True)
+                localisation = loc_el.get_text(strip=True) if loc_el else pays_recherche
+                lien = lien_el.get("href", "").split("?")[0]
+
+                if not lien or lien in liens_vus:
+                    continue
+                liens_vus.add(lien)
+
+                contexte = f"{titre} {entreprise} {localisation}"
+                secteur_valide = valider_et_classer_offre(
+                    titre, entreprise, contexte, est_post=False, lien=lien
+                )
+                if not secteur_valide:
+                    continue
+
+                pays_valide = verifier_pays_strict(contexte, pays_api=pays_recherche, lien=lien)
+                if not pays_valide:
+                    continue
+
+                offres.append({
+                    "Titre": titre,
+                    "Entreprise": entreprise,
+                    "Secteur": secteur_valide,
+                    "Pays": pays_valide,
+                    "Source": "LinkedIn (Offres)",
+                    "Lien": lien,
+                    "Niveau estimé": classer_niveau(titre),
+                    "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+                })
+
+            time.sleep(2.5)
+        except Exception as e:
+            print(f"⚠️ [LinkedIn Direct - {mots_cles}] Erreur : {e}")
+
+    return offres
+
+
+# ==============================================================================
+# 4B. SOURCE 1B : ACCÈS DIRECT API WORKDAY & ATS (GROUPES + MAISONS INDÉPENDANTES)
+# ==============================================================================
+
+def fetch_portails_directs():
+    """Interroge en direct les API Workday, SmartRecruiters et Greenhouse des groupes et Maisons."""
+    offres = []
+
+    tenants_workday = [
+        ("Richemont", "https://richemont.wd3.myworkdayjobs.com/wday/cxs/richemont/Richemont/jobs", "https://richemont.wd3.myworkdayjobs.com/fr-FR/Richemont"),
+        ("Kering", "https://kering.wd3.myworkdayjobs.com/wday/cxs/kering/Kering/jobs", "https://kering.wd3.myworkdayjobs.com/fr-FR/Kering"),
+        ("LVMH", "https://lvmh.wd3.myworkdayjobs.com/wday/cxs/lvmh/LVMH/jobs", "https://lvmh.wd3.myworkdayjobs.com/fr-FR/LVMH"),
+        ("Louis Vuitton", "https://louisvuitton.wd3.myworkdayjobs.com/wday/cxs/louisvuitton/LouisVuitton/jobs", "https://louisvuitton.wd3.myworkdayjobs.com/fr-FR/LouisVuitton"),
+        ("Christian Dior", "https://christiandior.wd3.myworkdayjobs.com/wday/cxs/christiandior/ChristianDiorCouture/jobs", "https://christiandior.wd3.myworkdayjobs.com/fr-FR/ChristianDiorCouture"),
+        ("Loro Piana", "https://loropiana.wd3.myworkdayjobs.com/wday/cxs/loropiana/LoroPiana/jobs", "https://loropiana.wd3.myworkdayjobs.com/en-US/LoroPiana"),
+        ("Bulgari", "https://bulgari.wd3.myworkdayjobs.com/wday/cxs/bulgari/Bulgari/jobs", "https://bulgari.wd3.myworkdayjobs.com/en-US/Bulgari"),
+        ("TAG Heuer", "https://tagheuer.wd3.myworkdayjobs.com/wday/cxs/tagheuer/TAGHeuer/jobs", "https://tagheuer.wd3.myworkdayjobs.com/fr-FR/TAGHeuer"),
+        ("Hublot", "https://hublot.wd3.myworkdayjobs.com/wday/cxs/hublot/Hublot/jobs", "https://hublot.wd3.myworkdayjobs.com/fr-FR/Hublot"),
+        ("Zenith", "https://zenith.wd3.myworkdayjobs.com/wday/cxs/zenith/Zenith/jobs", "https://zenith.wd3.myworkdayjobs.com/fr-FR/Zenith"),
+        ("Guerlain", "https://guerlain.wd3.myworkdayjobs.com/wday/cxs/guerlain/Guerlain/jobs", "https://guerlain.wd3.myworkdayjobs.com/fr-FR/Guerlain"),
+        ("Tiffany & Co.", "https://tiffany.wd5.myworkdayjobs.com/wday/cxs/tiffany/TiffanyCareers/jobs", "https://tiffany.wd5.myworkdayjobs.com/en-US/TiffanyCareers"),
+        ("Salvatore Ferragamo", "https://ferragamo.wd3.myworkdayjobs.com/wday/cxs/ferragamo/Ferragamo/jobs", "https://ferragamo.wd3.myworkdayjobs.com/en-US/Ferragamo"),
+        ("Puig", "https://puig.wd3.myworkdayjobs.com/wday/cxs/puig/PuigCareers/jobs", "https://puig.wd3.myworkdayjobs.com/en-US/PuigCareers")
+    ]
+
+    # Mots-clés larges pour capter tous les intitulés exacts des portails Workday
+    mots_cles = [
+        "Director",
+        "Directeur",
+        "Head of",
+        "Direttore"
+    ]
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    for groupe_nom, api_url, base_url in tenants_workday:
+        print(f"⏳ [Workday Direct] Scan : {groupe_nom}...")
+        liens_vus = set()
+        for kw in mots_cles:
+            try:
+                resp = requests.post(api_url, json={"appliedFacets": {}, "limit": 50, "offset": 0, "searchText": kw}, headers=headers, timeout=12)
+                if resp.status_code != 200:
+                    continue
+                for job in resp.json().get("jobPostings", []):
+                    titre = job.get("title", "") or ""
+                    loc = job.get("locationsText", "") or ""
+                    path = job.get("externalPath", "") or ""
+                    bullets = " ".join(job.get("bulletFields", []) or [])
+                    lien = f"{base_url}{path}" if path else base_url
+                    if lien in liens_vus:
+                        continue
+                    liens_vus.add(lien)
+
+                    contexte = f"{titre} {loc} {bullets} {path}"
+                    entreprise = detecter_maison_exacte(contexte, lien=lien, fallback=groupe_nom)
+
+                    secteur_valide = valider_et_classer_offre(titre, entreprise, contexte, est_post=False, lien=lien)
+                    if not secteur_valide:
+                        continue
+                    pays_valide = verifier_pays_strict(contexte, lien=lien)
+                    if not pays_valide:
+                        continue
+
+                    offres.append({
+                        "Titre": titre,
+                        "Entreprise": entreprise,
+                        "Secteur": secteur_valide,
+                        "Pays": pays_valide,
+                        "Source": "Sites Maisons de Luxe",
+                        "Lien": lien,
+                        "Niveau estimé": classer_niveau(titre),
+                        "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+                    })
+                time.sleep(0.3)
+            except Exception:
+                continue
+
+    # API publique SmartRecruiters
+    tenants_smartrecruiters = [
+        ("Breitling", "Breitling"),
+        ("Audemars Piguet", "AudemarsPiguet"),
+        ("Richard Mille", "RichardMille"),
+        ("Acrotec Group", "AcrotecGroup")
+    ]
+    for nom_maison, sr_id in tenants_smartrecruiters:
+        print(f"⏳ [SmartRecruiters Direct] Scan : {nom_maison}...")
+        try:
+            sr_url = f"https://api.smartrecruiters.com/v1/companies/{sr_id}/postings"
+            resp = requests.get(sr_url, timeout=12)
+            if resp.status_code == 200:
+                for job in resp.json().get("content", []):
+                    titre = job.get("name", "") or ""
+                    loc_obj = job.get("location", {}) or {}
+                    loc = f"{loc_obj.get('city', '')} {loc_obj.get('country', '')}"
+                    job_id = job.get("id", "")
+                    lien = f"https://jobs.smartrecruiters.com/{sr_id}/{job_id}" if job_id else sr_url
+
+                    contexte = f"{titre} {loc} {nom_maison}"
+                    secteur_valide = valider_et_classer_offre(titre, nom_maison, contexte, est_post=False, lien=lien)
+                    if not secteur_valide:
+                        continue
+                    pays_valide = verifier_pays_strict(contexte, pays_api=loc_obj.get("country", ""), lien=lien)
+                    if not pays_valide:
+                        continue
+
+                    offres.append({
+                        "Titre": titre,
+                        "Entreprise": nom_maison,
+                        "Secteur": secteur_valide,
+                        "Pays": pays_valide,
+                        "Source": "Sites Maisons de Luxe",
+                        "Lien": lien,
+                        "Niveau estimé": classer_niveau(titre),
+                        "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+                    })
+        except Exception:
+            continue
+
+    # API publique Greenhouse
+    tenants_greenhouse = [
+        ("Jacquemus", "jacquemus"),
+        ("Isabel Marant", "isabelmarant")
+    ]
+    for nom_maison, gh_id in tenants_greenhouse:
+        try:
+            gh_url = f"https://boards-api.greenhouse.io/v1/boards/{gh_id}/jobs"
+            resp = requests.get(gh_url, timeout=10)
+            if resp.status_code == 200:
+                for job in resp.json().get("jobs", []):
+                    titre = job.get("title", "") or ""
+                    loc = (job.get("location", {}) or {}).get("name", "")
+                    lien = job.get("absolute_url", gh_url)
+                    contexte = f"{titre} {loc} {nom_maison}"
+                    secteur_valide = valider_et_classer_offre(titre, nom_maison, contexte, est_post=False, lien=lien)
+                    pays_valide = verifier_pays_strict(contexte, lien=lien)
+                    if secteur_valide and pays_valide:
+                        offres.append({
+                            "Titre": titre,
+                            "Entreprise": nom_maison,
+                            "Secteur": secteur_valide,
+                            "Pays": pays_valide,
+                            "Source": "Sites Maisons de Luxe",
+                            "Lien": lien,
+                            "Niveau estimé": classer_niveau(titre),
+                            "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+                        })
+        except Exception:
+            continue
+
+    return offres
+
+
+# ==============================================================================
+# 5. SOURCES 2, 3 & 4 : SCAN UNIVERSEL DE TOUTES LES MAISONS, POSTS & CABINETS
+# ==============================================================================
+
+def fetch_web_et_posts():
+    if not DDGS_DISPONIBLE:
+        return []
+
+    offres = []
+
+    maisons_uniques = sorted(list(set(MAISONS_ET_MANUFACTURES)))
+    paquets_maisons = [maisons_uniques[i:i + 15] for i in range(0, len(maisons_uniques), 15)]
+
+    requetes = [
+        # --- SOURCE A : LINKEDIN POSTS ---
+        ("LinkedIn (Posts)", 'site:linkedin.com/posts "recrute" "Directeur" "Supply Chain" Luxe'),
+        ("LinkedIn (Posts)", 'site:linkedin.com/posts "recrute" "Directeur" "Opérations" Luxe OR Horlogerie OR Maroquinerie'),
+        ("LinkedIn (Posts)", 'site:linkedin.com/posts "hiring" "Head of" "Supply Chain" Luxury OR Watchmaking'),
+        ("LinkedIn (Posts)", 'site:linkedin.com/posts "hiring" "Director of Operations" Luxury OR Jewelry OR Fashion'),
+        ("LinkedIn (Posts)", 'site:linkedin.com/posts "opportunité" "Directeur" Horlogerie OR Joaillerie OR Couture'),
+        ("LinkedIn (Posts)", 'site:linkedin.com/posts "cercasi" OR "ricerca" "Direttore" "Supply Chain" OR "Operations" Lusso OR Moda'),
+
+        # --- SOURCE B : PORTAILS NON-WORKDAY ---
+        ("Sites Maisons de Luxe", '(site:talents.hermes.com OR site:careers.chanel.com OR site:careers.rolex.com OR site:careers.swatchgroup.com OR site:careers.pradagroup.com) ("Directeur" OR "Director" OR "Head of" OR "Direttore") ("Operations" OR "Opérations" OR "Supply Chain" OR "Manufacture" OR "Production" OR "Atelier")'),
+        ("Sites Maisons de Luxe", '(site:patek.com OR site:monclergroup.com OR site:brunellocucinelli.com OR site:zegna.com OR site:longchamp.com OR site:chopard.com) ("Directeur" OR "Director" OR "Head of" OR "Direttore") ("Operations" OR "Supply Chain" OR "Production" OR "Manufacture" OR "Produzione")'),
+
+        # --- SOURCE C : CABINETS DE RECRUTEMENT ---
+        ("Cabinets de Recrutement", '(site:michaelpage.fr/job-detail OR site:michaelpage.ch/job-detail OR site:michaelpage.it/job-detail) ("Directeur" OR "Director" OR "Head of" OR "Direttore") ("Supply Chain" OR "Operations" OR "Opérations" OR "Production")'),
+        ("Cabinets de Recrutement", '(site:robertwalters.fr OR site:robertwalters.ch OR site:robertwalters.it OR site:luxetalent.fr OR site:luxetalent.it) ("Directeur" OR "Director" OR "Head of" OR "Direttore") ("Supply Chain" OR "Operations" OR "Luxe" OR "Luxury" OR "Lusso")'),
+        ("Cabinets de Recrutement", '(site:hays.fr OR site:hays.ch OR site:hays.it OR site:fedsupply.fr) ("Directeur" OR "Director" OR "Head of") ("Supply Chain" OR "Industriel" OR "Manufacture" OR "Logistique")')
+    ]
+
+    for paquet in paquets_maisons:
+        or_maisons = " OR ".join([f'"{m}"' for m in paquet])
+        q_universelle = f'({or_maisons}) ("Directeur" OR "Director" OR "Head of" OR "Direttore") ("Operations" OR "Opérations" OR "Supply Chain" OR "Manufacture" OR "Production") (careers OR jobs OR recrutement OR offerte)'
+        requetes.append(("Sites Maisons de Luxe", q_universelle))
+
+    try:
+        with DDGS() as ddgs:
+            for source_nom, query in requetes:
+                print(f"⏳ [{source_nom}] Scan : {query[:65]}...")
+                try:
+                    resultats = list(ddgs.text(query, max_results=20))
+                    for r in resultats:
+                        titre_web = r.get("title", "")
+                        lien_web = r.get("href", "#")
+                        extrait = r.get("body", "")
+                        est_post = (source_nom == "LinkedIn (Posts)")
+
+                        if est_post and not est_lien_post_direct(lien_web):
+                            continue
+
+                        if est_post and "linkedin.com/posts/" in lien_web.lower():
+                            try:
+                                slug = lien_web.split("linkedin.com/posts/")[1].split("_")[0]
+                                entreprise = slug.replace("-", " ").title()
+                            except Exception:
+                                entreprise = "Auteur LinkedIn"
+                        else:
+                            entreprise = detecter_maison_exacte(f"{titre_web} {extrait}", lien=lien_web, fallback=source_nom)
+
+                        secteur_valide = valider_et_classer_offre(
+                            titre_web, entreprise, extrait, est_post=est_post, lien=lien_web
+                        )
+                        if not secteur_valide:
+                            continue
+
+                        pays_valide = verifier_pays_strict(f"{titre_web} {extrait}", lien=lien_web)
+                        if not pays_valide:
+                            continue
+
+                        extrait_propre = " ".join(extrait.split())
+                        titre_affiche = f"📢 {extrait_propre[:125]}..." if (est_post and len(extrait_propre) > 20) else titre_web
+                        niveau_detecte = classer_niveau(f"{titre_web} {extrait}" if est_post else titre_web)
+
+                        offres.append({
+                            "Titre": titre_affiche,
+                            "Entreprise": entreprise,
+                            "Secteur": secteur_valide,
+                            "Pays": pays_valide,
+                            "Source": deduire_source(lien_web, source_nom),
+                            "Lien": lien_web,
+                            "Niveau estimé": niveau_detecte,
+                            "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+                        })
+                    time.sleep(1.5)
+                except Exception as e:
+                    print(f"⚠️ Erreur sur {source_nom} : {e}")
+    except Exception as e:
+        print(f"⚠️ Erreur moteur web : {e}")
+
+    return offres
+
+
+# ==============================================================================
+# 6. SAUVEGARDE, PURGE & PRÉSERVATION DES DONNÉES CRM
+# ==============================================================================
+
+def executer_tout():
+    colonnes_scraper = [
+        "Titre", "Entreprise", "Secteur", "Pays", "Source", "Lien",
+        "Niveau estimé", "Date de détection"
+    ]
+    colonnes_crm = [
+        "Statut", "Priorité", "Contact / Chasseur", "Date dernière action", "Notes"
+    ]
+    toutes_colonnes = colonnes_scraper + colonnes_crm
+
+    toutes_les_offres = []
+    toutes_les_offres.extend(fetch_linkedin_jobs())
+    toutes_les_offres.extend(fetch_portails_directs())
+    toutes_les_offres.extend(fetch_web_et_posts())
+
+    df_nouveau = pd.DataFrame(toutes_les_offres, columns=colonnes_scraper)
+    df_nouveau["Statut"] = "🆕 À analyser"
+    df_nouveau["Priorité"] = "🟠 Moyenne"
+    df_nouveau["Contact / Chasseur"] = ""
+    df_nouveau["Date dernière action"] = ""
+    df_nouveau["Notes"] = ""
+
+    if os.path.exists("offres_emploi.csv"):
+        df_existant = pd.read_csv("offres_emploi.csv")
+        lignes_propres = []
+        for _, row in df_existant.iterrows():
+            titre_row = row.get("Titre", "")
+            ent_row = row.get("Entreprise", "")
+            lien_row = str(row.get("Lien", "#"))
+            source_propre = row.get("Source", "") if row.get("Source") == "Approche directe / Réseau" else deduire_source(lien_row, row.get("Source", ""))
+
+            if source_propre == "Approche directe / Réseau" or lien_row.startswith("manuel://"):
+                lignes_propres.append({col: row.get(col, "") if pd.notna(row.get(col, "")) else "" for col in toutes_colonnes})
+                continue
+
+            est_post_row = (source_propre == "LinkedIn (Posts)")
+            secteur_ok = valider_et_classer_offre(
+                titre_row, ent_row, row.get("Secteur", ""),
+                est_post=est_post_row, lien=lien_row
+            )
+            pays_ok = verifier_pays_strict(
+                f"{titre_row} {row.get('Pays', '')}",
+                pays_api=row.get("Pays", ""), lien=lien_row
+            )
+
+            if secteur_ok and pays_ok:
+                lignes_propres.append({
+                    "Titre": titre_row,
+                    "Entreprise": ent_row,
+                    "Secteur": secteur_ok,
+                    "Pays": pays_ok,
+                    "Source": source_propre,
+                    "Lien": lien_row,
+                    "Niveau estimé": row.get("Niveau estimé", classer_niveau(titre_row)),
+                    "Date de détection": row.get("Date de détection", pd.Timestamp.today().strftime("%Y-%m-%d")),
+                    "Statut": row.get("Statut", "🆕 À analyser") if pd.notna(row.get("Statut")) else "🆕 À analyser",
+                    "Priorité": row.get("Priorité", "🟠 Moyenne") if pd.notna(row.get("Priorité")) else "🟠 Moyenne",
+                    "Contact / Chasseur": row.get("Contact / Chasseur", "") if pd.notna(row.get("Contact / Chasseur")) else "",
+                    "Date dernière action": row.get("Date dernière action", "") if pd.notna(row.get("Date dernière action")) else "",
+                    "Notes": row.get("Notes", "") if pd.notna(row.get("Notes")) else ""
+                })
+
+        df_existant_propre = pd.DataFrame(lignes_propres, columns=toutes_colonnes)
+        nb_avant = len(df_existant_propre)
+        df_final = pd.concat([df_existant_propre, df_nouveau], ignore_index=True)
+    else:
+        nb_avant = 0
+        df_final = df_nouveau
+
+    if df_final.empty:
+        pd.DataFrame(columns=toutes_colonnes).to_csv("offres_emploi.csv", index=False)
+        print("⚠️ Aucune offre ou post de recrutement trouvé sur ce passage.")
+        return
+
+    df_final = df_final[df_final["Pays"].isin(["France", "Suisse", "Italie"])]
+
+    df_final = df_final.drop_duplicates(subset=["Lien"], keep="first")
+    df_final["cle_doublon"] = (
+        df_final["Titre"].astype(str).str.lower().str.strip() + " | " +
+        df_final["Entreprise"].astype(str).str.lower().str.strip() + " | " +
+        df_final["Pays"].astype(str).str.lower().str.strip()
+    )
+    df_final = df_final.drop_duplicates(subset=["cle_doublon"], keep="first")
+    df_final = df_final.drop(columns=["cle_doublon"])
+
+    df_final.to_csv("offres_emploi.csv", index=False)
+
+    nouvelles = max(0, len(df_final) - nb_avant)
+    print("\n" + "=" * 55)
+    print(f"✅ TERMINÉ ! {nouvelles} nouvelles offres/posts ajoutés au CRM.")
+    print(f"📂 Total dans le CRM : {len(df_final)}")
+    print("=" * 55)
+
+
+if __name__ == "__main__":
+    executer_tout()
