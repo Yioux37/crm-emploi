@@ -1,10 +1,18 @@
 {
-  "description": "Sources publiques complementaires. N'ajouter que des identifiants de tableaux publiquement visibles et des flux RSS publics.",
+  "description": "Explicitly configured public ATS boards. IDs and public availability should be verified before relying on a connector. No passwords or application data are collected.",
   "lever": [
     {"company": "Karl Lagerfeld", "site": "karllagerfeld", "region": "eu"}
   ],
   "ashby": [
     {"company": "Veliu", "board": "veliu"}
+  ],
+  "greenhouse": [
+    {"company": "Jacquemus", "board": "jacquemus"},
+    {"company": "Isabel Marant", "board": "isabelmarant"}
+  ],
+  "smartrecruiters": [
+    {"company": "Breitling", "company_id": "Breitling"},
+    {"company": "Audemars Piguet", "company_id": "AudemarsPiguet"}
   ],
   "rss": []
 }

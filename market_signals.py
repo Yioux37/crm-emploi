@@ -19,15 +19,8 @@ from search_gateway import default_search_client
 
 SIGNAL_COLUMNS = ['Date de détection', 'Actualité', 'Entreprise', 'Catégorie',
                   'Pays', 'Source', 'Lien']
-NEWS_SITES = [
-    ('FashionNetwork', 'fashionnetwork.com'),
-    ('Journal du Luxe', 'journalduluxe.fr'),
-    ('WorldTempus', 'worldtempus.com'),
-    ('WatchPro', 'watchpro.com'),
-    ('Bilan', 'bilan.ch'),
-    ('Les Echos', 'lesechos.fr'),
-    ('Il Sole 24 Ore', 'ilsole24ore.com'),
-]
+from source_catalog import NEWS_SITES
+
 SIGNAL_TERMS = {
     'Investissement / expansion': ['investissement', 'investit', 'investissement', 'agrandit',
                                     'extension', 'nouvelle usine', 'nouvel atelier',
@@ -37,9 +30,36 @@ SIGNAL_TERMS = {
                                      'nouveau dirigeant', 'nouvelle direction', 'reorganisation',
                                      'reorganization', 'appointed', 'appoints', 'hiring',
                                      'direzione', 'assume la guida', 'nomina'],
+    'Transformation industrielle': ['modernisation', 'automatisation', 'automation',
+                                     'digitalisation', 'digital transformation',
+                                     'transformation industrielle', 'excellence operationnelle',
+                                     'operational excellence', 'industria 4.0', 'automazione'],
     'Acquisition / rapprochement': ['rachat', 'acquisition', 'fusion', 'partenariat', 'acquires',
                                      'merger', 'joint venture', 'acquisizione', 'fusione'],
 }
+
+
+# Evidence-aware actions. A market signal is a lead, never a confirmed vacancy.
+GUIDANCE = {
+    'Investissement / expansion': (
+        'Capacite industrielle / supply chain potentiellement en mouvement',
+        'Lire la source et sa date; verifier le projet; identifier le bon service; proposer un echange reseau.'),
+    'Recrutement / reorganisation': (
+        'Organisation ou priorites de direction potentiellement en evolution',
+        'Confirmer les nominations et leur date; comprendre les enjeux; preparer une prise de contact ciblee.'),
+    'Acquisition / rapprochement': (
+        'Integration industrielle, flux et gouvernance a surveiller',
+        'Verifier le perimetre et l etat de l operation; proposer une conversation sur les enjeux.'),
+    'Transformation industrielle': (
+        'Chantiers de performance et de transformation a approfondir',
+        'Chercher les besoins documentes en operations; preparer une approche liee a un enjeu precis.'),
+}
+
+
+def signal_guidance(category: str) -> tuple[str, str]:
+    title, action = GUIDANCE.get(category, (
+        'Actualite a verifier', 'Lire la source originale avant toute conclusion ou prise de contact.'))
+    return title, 'Verifier la source et sa date avant toute demarche. ' + action
 
 
 def detect_signal(text: object) -> str | None:
@@ -70,12 +90,13 @@ def scan_public_signals(companies: list[str], day: date | None = None,
                         budget: int = 4, ddgs_factory=None,
                         sleep_seconds: float = 1.0) -> list[dict]:
     day = day or date.today()
-    budget = max(0, min(7, budget))
+    budget = max(0, min(len(NEWS_SITES), budget))
     if ddgs_factory is None:
         ddgs_factory = default_search_client()
     if not ddgs_factory or not budget:
         return []
-    selected = [NEWS_SITES[(day.toordinal() + i) % len(NEWS_SITES)] for i in range(budget)]
+    start = (day.toordinal() * budget) % len(NEWS_SITES)
+    selected = [NEWS_SITES[(start + i) % len(NEWS_SITES)] for i in range(budget)]
     terms = [
         '("nouvelle usine" OR investissement OR expansion OR "new factory") luxe horlogerie',
         '(acquisition OR nomination OR "nouvelle direction" OR recrutement) luxe horlogerie',
@@ -146,7 +167,7 @@ def update_signals(output: str | Path, companies: list[str], day: date | None = 
     output = Path(output)
     if budget is None:
         try:
-            budget = int(os.getenv('NEWS_MAX_QUERIES', '4'))
+            budget = int(os.getenv('NEWS_MAX_QUERIES', '5'))
         except ValueError:
             budget = 4
     rows = scan_public_signals(companies, day=day, budget=budget, ddgs_factory=ddgs_factory)

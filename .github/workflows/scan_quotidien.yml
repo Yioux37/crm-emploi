@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
-      INDEX_MAX_QUERIES: "12"
-      NEWS_MAX_QUERIES: "4"
+      INDEX_MAX_QUERIES: "14"
+      NEWS_MAX_QUERIES: "5"
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4

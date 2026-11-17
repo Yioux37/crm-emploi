@@ -1,12 +1,25 @@
-# CRM Carrière — Direction Opérations & Supply Chain (v3)
+# CRM Carrière — Direction Opérations & Supply Chain (v4)
 
 Un CRM **personnel** de recherche d'emploi pour les secteurs luxe, horlogerie, joaillerie et couture en France, Suisse et Italie. L'application associe la collecte d'offres à un **suivi des candidatures** (statuts, notes privées, contacts, prochaines actions, historique).
 
-## V3 — Force de frappe renforcée (novembre 2026)
+## Nouveautés V4 - radar élargi et mode d'emploi simple
+
+- **75 cibles de recherche d'offres**, dont 6 prioritaires chaque jour : luxe, horlogerie, cadres, maisons, cabinets et ATS. Les autres tournent sur plusieurs jours via index public. La présence dans la liste **ne prouve pas** une collecte réussie ou autorisée en direct.
+- **18 médias** pour les signaux de marché, interrogés en rotation. Ils donnent des pistes de prospection, jamais des postes vacants confirmés.
+- **API publiques configurables** pour Lever, Ashby, Greenhouse, SmartRecruiters et flux RSS/Atom de sites carrières, uniquement si les identifiants des tableaux publics sont corrects. Les sources Workday et les autres connecteurs V3 sont conservés.
+- **Guide simple intégré dans Streamlit** : chaque matin, comment lire une offre, utiliser le score, noter une candidature et suivre une relance.
+- **Page Sources surveillées** : liste des sources par famille, différence entre recherche indexée / connexion directe / presse, limites connues.
+- **Pistes de prise de contact** pour les actualités d'entreprise, avec brouillon personnalisable non envoyé automatiquement.
+
+Pour transmettre le mode d'emploi à papa, ouvre [`GUIDE_PAPA.md`](GUIDE_PAPA.md). Pour mettre à jour l'app, ouvre [`DEPLOIEMENT_V4.md`](DEPLOIEMENT_V4.md).
+
+---
+
+## Historique : V3 — Force de frappe renforcée (novembre 2026)
 
 La V3 apporte **quatre nouvelles voies** sans toucher aux notes et candidatures privées de la V2 :
 
-1. **Lever + Ashby + RSS/Teamtailor** : lecture d'annonces publiques depuis les interfaces autorisées et explicitement configurées dans `sources_plus.json`. Deux employeurs vérifiés servent d'exemples initiaux ; tu peux en ajouter d'autres au fil de la veille.
+1. **Lever + Ashby + RSS/Teamtailor** : lecture d'annonces publiques depuis les interfaces autorisées et explicitement configurées dans `sources_plus.json`. Deux identifiants historiques servent d'exemples (à revalider) ; tu peux en ajouter d'autres au fil de la veille.
 2. **24 sites explorés** via leurs liens indexés : portails spécialisés luxe (FashionJobs), emploi cadres (APEC, Cadremploi, jobs.ch, jobup.ch, JobScout24, Welcome to the Jungle), cabinets de recrutement (Michael Page, Robert Walters, Hays, Morgan Philips, Luxe Talent), et offres d'autres ATS. Le scan interroge **12 sites par jour** en rotation, pas 24 simultanément ; un index peut ne pas retourner de résultat.
 3. **Signaux marché** : articles publics d'investissement, extension de manufactures, nominations et acquisitions chez les maisons ciblées ; visibles dans la page dédiée **Signaux marché**. Ce ne sont **pas** des postes ouverts.
 4. **Recherche Brave facultative** : si `BRAVE_SEARCH_API_KEY` est enregistré dans les Secrets GitHub, les recherches indexées et la veille presse passent par l'API Brave, sinon par `ddgs`. Aucune clé n'est nécessaire pour les flux ATS publics.
@@ -21,7 +34,7 @@ Le scan conserve le filtrage France/Suisse/Italie, le niveau direction et le mé
 - L'API Offres d'emploi de France Travail n'est actuellement pas en libre distribution ; demander l'accès via France Travail si nécessaire plutôt que de tenter de la contourner.
 - **Aucun scan des sources externes n'a été exécuté dans l'environnement de livraison** ; les nouveaux parseurs sont testés hors réseau. Contrôler la première exécution dans GitHub Actions.
 
-Lis [`DEPLOIEMENT_V3.md`](DEPLOIEMENT_V3.md) pour remplacer la V2 sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
+Lis [`DEPLOIEMENT_V4.md`](DEPLOIEMENT_V4.md) pour remplacer la V2 sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
 
 ## Nouveautés de la v2
 

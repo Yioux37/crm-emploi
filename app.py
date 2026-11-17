@@ -17,10 +17,13 @@ from link_health import check_link
 from matching import canonical_url
 from notifications import CLOSED, collect_alerts
 from scoring import DEFAULT_PREFERENCES, calculate_score
+from source_catalog import SEARCH_SITES, NEWS_SITES, MANUAL_OR_RESTRICTED, catalog_totals
+from sources_plus import read_sources_config
+from market_signals import signal_guidance
 from storage import CRMStore, ConcurrentEditError, PRIORITIES, STATUSES
 
 ROOT = Path(__file__).resolve().parent
-PAGES = ["Accueil", "Opportunités", "Signaux marché", "Relances", "Statistiques", "Préférences"]
+PAGES = ["Accueil", "Guide simple", "Opportunités", "Signaux marché", "Relances", "Sources surveillées", "Statistiques", "Préférences"]
 
 st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="⌚", layout="wide")
 st.markdown("""
@@ -113,6 +116,8 @@ if "nav_target" in st.session_state:
     st.session_state["current_page"] = st.session_state.pop("nav_target")
 st.sidebar.radio("Navigation", PAGES, key="current_page", label_visibility="collapsed")
 st.sidebar.divider()
+st.sidebar.caption("Collecte automatique : GitHub Actions met a jour "
+                   "les annonces publiques du depot.")
 if st.sidebar.button("🔎 Rechercher de nouvelles offres", width="stretch"):
     with st.spinner("Interrogation des portails et moteurs de recherche…"):
         try:
@@ -218,6 +223,14 @@ def inline_offer_buttons(offers_subset: pd.DataFrame, prefix: str, limit: int = 
 page = st.session_state.get("current_page", "Accueil")
 
 if page == "Accueil":
+    with st.container(border=True):
+        st.markdown("**Pour commencer : 3 gestes suffisent**")
+        st.write("1. Regarder les meilleures offres ci-dessous.  "
+                 "2. Ouvrir une fiche et noter sa démarche.  "
+                 "3. Consulter les relances à faire.")
+        if st.button("Guide Ouvrir le guide simple", key="home_guide"):
+            st.session_state["nav_target"] = "Guide simple"
+            st.rerun()
     new_cutoff = (date.today() - timedelta(days=7)).isoformat()
     count_new = int((df["detected_on"] >= new_cutoff).sum()) if not df.empty else 0
     count_high = len(alerts["high"])
@@ -256,6 +269,50 @@ if page == "Accueil":
                 st.caption(f"Dernier scan enregistré : {report.get('date_scan', '—')} · {report.get('statut', 'inconnu')}")
             except (ValueError, OSError):
                 pass
+
+elif page == "Guide simple":
+    st.subheader("Guide Comment utiliser mon radar d'emploi")
+    st.write("Ce site est ton **carnet de recherche d'emploi personnel**. "
+             "Il découvre des annonces, repère des mouvements d'entreprises "
+             "et t'aide à ne pas oublier une candidature. "
+             "Tu n'as jamais besoin d'ouvrir GitHub pour t'en servir.")
+    with st.container(border=True):
+        st.markdown("#### Chaque matin (5 minutes)")
+        st.markdown("**1. Ouvre Accueil.** Regarde les postes avec le meilleur score. "
+                    "Le score mesure la ressemblance avec tes critères, **pas tes chances d'être recruté**.\n\n"
+                    "**2. Ouvre Opportunités.** Clique sur une offre qui t'intéresse, "
+                    "puis sur son lien pour lire l'annonce originale. Vérifie qu'elle est toujours ouverte.\n\n"
+                    "**3. Note ce que tu fais.** Dans la fiche, indique la priorité, "
+                    "le statut, une note et la **date de prochaine action**.\n\n"
+                    "**4. Ouvre Relances.** C'est la liste des personnes et offres à recontacter aujourd'hui.")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### Quand une offre t'intéresse")
+        st.write("Lis le poste → vérifie le site de l'entreprise → "
+                 "envoie ta candidature si tu le souhaites → note 'Candidature envoyée' "
+                 "→ programme une relance.")
+        if st.button("Voir les opportunités", key="guide_go_offers"):
+            st.session_state["nav_target"] = "Opportunités"
+            st.rerun()
+    with right:
+        st.markdown("#### Quand une entreprise bouge")
+        st.write("Va dans **Signaux marché** : ouverture d'un atelier, investissement, "
+                 "acquisition ou nouvelle direction. Ce sont des **idées d'approche réseau**, "
+                 "pas des offres d'emploi. Lis l'article avant d'agir.")
+        if st.button("Voir les signaux marché", key="guide_go_signals"):
+            st.session_state["nav_target"] = "Signaux marché"
+            st.rerun()
+    with st.expander("❓ Les mots à connaître"):
+        st.write("**Offre** = poste publié. **Source** = site où l'offre a été trouvée. "
+                 "**Score /100** = pertinence estimée selon tes préférences. "
+                 "**Signal marché** = actualité à examiner pour une prise de contact. "
+                 "**Relance** = date de ton prochain message ou appel.")
+    st.info("Le radar recherche automatiquement via GitHub Actions selon sa programmation, "
+            "mais toutes les sources ne donnent pas de résultats chaque jour. "
+            "Aucune candidature n'est envoyée automatiquement.")
+    if store.is_local:
+        st.warning("Sur Streamlit Cloud, il faut configurer DATABASE_URL vers PostgreSQL "
+                   "avant de conserver des contacts, notes ou relances importantes.")
 
 elif page == "Opportunités":
     st.subheader("🎯 Explorer et mettre à jour les opportunités")
@@ -428,6 +485,24 @@ elif page == "Signaux marché":
                 )
                 st.caption("Date = découverte par le radar, pas date de publication de l'article. "
                            "Vérifier l'information et la date dans la source avant de contacter une entreprise.")
+                with st.expander("Approche Transformer une actualité en prise de contact (facultatif)"):
+                    records = signals.to_dict("records")
+                    signal_ix = st.selectbox("Actualité à examiner", range(len(records)),
+                        format_func=lambda i: f"{records[i]['Entreprise']} : {records[i]['Actualité'][:90]}",
+                        key="market_signal_selection")
+                    selected = records[signal_ix]
+                    hypothesis, next_step = signal_guidance(selected["Catégorie"])
+                    st.markdown(f"**Piste à explorer :** {hypothesis}")
+                    st.write(next_step)
+                    st.caption("Vérifie la date et le contenu de l'article original. "
+                               "Aucun poste ouvert ni contact identifié n'est présumé.")
+                    draft = (f"Bonjour,\n\nJ'ai lu une actualité concernant "
+                             f"{selected['Entreprise']} et je m'intéresse aux enjeux "
+                             "de direction des opérations, de manufacture et de supply chain. "
+                             "Si le sujet est pertinent pour votre équipe, je serais heureux "
+                             "d'échanger à ce propos.\n\nBien cordialement")
+                    st.text_area("Brouillon personnalisable (jamais envoyé automatiquement)",
+                                 value=draft, height=150, key=f"market_draft_{signal_ix}")
         except (OSError, ValueError, pd.errors.ParserError) as exc:
             st.warning(f"Impossible de lire les signaux : {exc}")
     else:
@@ -449,6 +524,67 @@ elif page == "Relances":
     st.markdown("#### 🗓️ Planifiées")
     short_table(upcoming)
     st.caption("Après une relance, mets à jour la dernière action et fixe une nouvelle date sur la fiche.")
+
+elif page == "Sources surveillées":
+    st.subheader("Sources Quelles sources le radar surveille-t-il ?")
+    totals = catalog_totals()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Sites recherchés", totals["index_targets"])
+    c2.metric("Prioritaires chaque jour", totals["priority_daily"])
+    c3.metric("Sources presse", totals["news_targets"])
+    st.info("**Surveillé** ne veut pas dire **scrapé en direct**. "
+            "Pour la plupart des sites, le radar cherche seulement des annonces "
+            "déjà publiques dans un moteur de recherche. "
+            "Les autres sites tournent entre les jours pour limiter les requêtes.")
+    tab_jobs, tab_news, tab_direct, tab_limits = st.tabs([
+        "Emploi et chasse", "Presse et tendances", "Flux directs", "Limites et accès"])
+    with tab_jobs:
+        sites = pd.DataFrame([
+            {"Site": name, "Famille": kind, "Lien": "https://" + domain,
+             "Fréquence": "Quotidienne" if priority else "En rotation"}
+            for name, domain, kind, lang, priority in SEARCH_SITES
+        ])
+        choice = st.selectbox("Afficher", ["Tous"] + sorted(sites["Famille"].unique().tolist()),
+                              key="source_family")
+        if choice != "Tous":
+            sites = sites[sites["Famille"] == choice]
+        st.dataframe(sites, hide_index=True, width="stretch",
+                     column_config={"Lien": st.column_config.LinkColumn("Site public")})
+    with tab_news:
+        st.write("Ces articles aident à comprendre les entreprises, "
+                 "mais **ne correspondent pas à des postes vacants**.")
+        news = pd.DataFrame([{"Média": name, "Lien": "https://" + domain,
+                              "Fréquence": "En rotation"}
+                             for name, domain in NEWS_SITES])
+        st.dataframe(news, hide_index=True, width="stretch",
+                     column_config={"Lien": st.column_config.LinkColumn("Site public")})
+    with tab_direct:
+        st.write("Les flux publics (Lever, Ashby, Greenhouse, SmartRecruiters, "
+                 "RSS) sont plus précis quand une maison dispose d'un identifiant "
+                 "confirmé. Ils ne nécessitent ni connexion candidat ni scraping des pages.")
+        try:
+            cfg = read_sources_config()
+            rows = []
+            for provider, key in [("Lever", "lever"), ("Ashby", "ashby"),
+                                  ("Greenhouse", "greenhouse"),
+                                  ("SmartRecruiters", "smartrecruiters"),
+                                  ("RSS/Atom", "rss")]:
+                for board in cfg.get(key, []):
+                    rows.append({"Fournisseur": provider, "Maison": board.get("company", ""),
+                                 "Configuration": board.get("site") or board.get("board") or
+                                                   board.get("company_id") or board.get("url")})
+            st.dataframe(pd.DataFrame(rows, columns=["Fournisseur", "Maison", "Configuration"]),
+                         hide_index=True, width="stretch")
+            st.caption("Les identifiants de flux doivent être vérifiés à leur source. "
+                       "Les erreurs et les volumes figurent dans Statistiques après un scan.")
+        except (OSError, ValueError, TypeError) as exc:
+            st.warning("Configuration non disponible : " + str(exc))
+    with tab_limits:
+        for name, why in MANUAL_OR_RESTRICTED:
+            st.markdown(f"**{name}** : {why}")
+        st.caption("Les offres confidentielles exigent une démarche humaine, "
+                   "les APIs privées exigent une autorisation, et les pages "
+                   "protégées ne sont pas contournées.")
 
 elif page == "Statistiques":
     st.subheader("📈 Pilotage de la recherche")

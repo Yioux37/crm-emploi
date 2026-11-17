@@ -24,38 +24,13 @@ from search_gateway import default_search_client
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT / 'sources_plus.json'
-HEADERS = {'User-Agent': 'CRM-Carriere/3.0 (lecture annonces publiques)',
+HEADERS = {'User-Agent': 'CRM-Carriere/4.0 (lecture annonces publiques)',
            'Accept': 'application/json, application/xml, text/xml;q=0.9, */*;q=0.5'}
 IDENTIFIER = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,90}$')
 
 # Sites classes par type. La rotation limite les quotas du moteur web :
 # les sites non prioritaires alternent chaque jour plutot qu'etre tous interroges.
-SEARCH_SITES = [
-    ('FashionJobs - France', 'fr.fashionjobs.com', 'Portails spécialisés', 'fr', True),
-    ('FashionJobs - Suisse', 'ch.fashionjobs.com', 'Portails spécialisés', 'fr', True),
-    ('FashionJobs - Italie', 'it.fashionjobs.com', 'Portails spécialisés', 'it', True),
-    ('APEC cadres', 'apec.fr', 'Portails cadres', 'fr', True),
-    ('Emploi Suisse jobs.ch', 'jobs.ch', 'Portails cadres', 'en', True),
-    ('Emploi Suisse jobup.ch', 'jobup.ch', 'Portails cadres', 'fr', True),
-    ('Cadremploi', 'cadremploi.fr', 'Portails cadres', 'fr', False),
-    ('Welcome to the Jungle', 'welcometothejungle.com', 'Portails spécialisés', 'fr', False),
-    ('JobScout24 Suisse', 'jobscout24.ch', 'Portails cadres', 'en', False),
-    ('Michael Page France', 'michaelpage.fr', 'Cabinets de Recrutement', 'fr', False),
-    ('Michael Page Suisse', 'michaelpage.ch', 'Cabinets de Recrutement', 'en', False),
-    ('Michael Page Italie', 'michaelpage.it', 'Cabinets de Recrutement', 'it', False),
-    ('Robert Walters France', 'robertwalters.fr', 'Cabinets de Recrutement', 'fr', False),
-    ('Robert Walters Suisse', 'robertwalters.ch', 'Cabinets de Recrutement', 'en', False),
-    ('Robert Walters Italie', 'robertwalters.it', 'Cabinets de Recrutement', 'it', False),
-    ('Hays France', 'hays.fr', 'Cabinets de Recrutement', 'fr', False),
-    ('Hays Suisse', 'hays.ch', 'Cabinets de Recrutement', 'en', False),
-    ('Hays Italie', 'hays.it', 'Cabinets de Recrutement', 'it', False),
-    ('Morgan Philips', 'morganphilips.com', 'Cabinets de Recrutement', 'en', False),
-    ('Luxe Talent', 'luxetalent.net', 'Cabinets de Recrutement', 'en', False),
-    ('Greenhouse autres maisons', 'job-boards.greenhouse.io', 'Sites Maisons de Luxe', 'en', False),
-    ('Lever autres maisons', 'jobs.eu.lever.co', 'Sites Maisons de Luxe', 'en', False),
-    ('Ashby autres maisons', 'jobs.ashbyhq.com', 'Sites Maisons de Luxe', 'en', False),
-    ('SmartRecruiters autres maisons', 'jobs.smartrecruiters.com', 'Sites Maisons de Luxe', 'en', False),
-]
+from source_catalog import SEARCH_SITES
 
 SEARCH_TERMS = {
     'fr': [
@@ -172,6 +147,48 @@ def fetch_ashby(session, board: dict) -> list[dict]:
     return jobs
 
 
+def fetch_greenhouse(session, board: dict) -> list[dict]:
+    """Public Greenhouse Job Board GET endpoint; no login or application POST."""
+    company = str(board['company']).strip()
+    slug = _safe_slug(board['board'])
+    response = _get_json(session,
+                         f'https://boards-api.greenhouse.io/v1/boards/{slug}/jobs')
+    jobs = []
+    for post in response.get('jobs', []) if isinstance(response, dict) else []:
+        location = (post.get('location') or {}).get('name') or ''
+        jobs.append(_raw(post.get('title'), company, location,
+                         post.get('absolute_url'), 'Sites Maisons de Luxe',
+                         context=' '.join(str(d.get('name', '')) for d in post.get('departments') or [])))
+    return jobs
+
+
+def fetch_smartrecruiters(session, board: dict) -> list[dict]:
+    """Only publicly advertised posts of an explicitly configured company."""
+    company = str(board['company']).strip()
+    slug = _safe_slug(board['company_id'])
+    rows = []
+    for offset in (0, 100, 200):
+        batch = _get_json(session,
+                          f'https://api.smartrecruiters.com/v1/companies/{slug}/postings',
+                          params={'limit': 100, 'offset': offset})
+        posts = batch.get('content', []) if isinstance(batch, dict) else []
+        for post in posts:
+            job_id = post.get('id') or ''
+            if not IDENTIFIER.fullmatch(str(job_id)):
+                continue
+            location = post.get('location') or {}
+            city = location.get('city') or ''
+            region = location.get('region') or ''
+            country = location.get('country') or ''
+            rows.append(_raw(post.get('name'), company, ' '.join((city, region)).strip(),
+                             f'https://jobs.smartrecruiters.com/{slug}/{job_id}',
+                             'Sites Maisons de Luxe', country_field=country,
+                             context=str(post.get('department') or '')))
+        if len(posts) < 100:
+            break
+    return rows
+
+
 def _xml_txt(element, name: str) -> str:
     for child in element:
         if child.tag.rsplit('}', 1)[-1].lower() == name.lower():
@@ -216,7 +233,9 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
     jobs = []
     providers = [('Lever', config.get('lever', []), fetch_lever),
                  ('Ashby', config.get('ashby', []), fetch_ashby),
-                 ('RSS/Teamtailor', config.get('rss', []), fetch_rss)]
+                 ('Greenhouse', config.get('greenhouse', []), fetch_greenhouse),
+                 ('SmartRecruiters', config.get('smartrecruiters', []), fetch_smartrecruiters),
+                 ('RSS/Atom', config.get('rss', []), fetch_rss)]
     for provider, boards, fn in providers:
         for board in boards:
             name = str(board.get('company', '?'))
@@ -238,7 +257,7 @@ def select_search_sites(day: date | None = None, budget: int | None = None) -> l
     day = day or date.today()
     if budget is None:
         try:
-            budget = int(os.getenv('INDEX_MAX_QUERIES', '12'))
+            budget = int(os.getenv('INDEX_MAX_QUERIES', '14'))
         except ValueError:
             budget = 12
     budget = max(0, min(30, budget))
@@ -268,7 +287,7 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
     try:
         with ddgs_factory() as ddgs:
             for name, domain, source, language, _ in sites:
-                terms = SEARCH_TERMS[language][day.toordinal() % 3]
+                terms = SEARCH_TERMS[language][(day.toordinal() // 7 + sum(map(ord, domain))) % 3]
                 query = f'site:{domain} {terms}'
                 try:
                     for r in ddgs.text(query, max_results=12):
