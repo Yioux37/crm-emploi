@@ -1,17 +1,17 @@
-# Mettre le CRM V4 sur Streamlit : 4 étapes
+# Mettre le CRM V4.1 sur Streamlit : 4 étapes
 
 **Ce fichier est pour la personne qui administre l'application. Papa n'a pas besoin d'exécuter ces commandes.**
 
 ## 1. Télécharger le ZIP
 
-Télécharge `crm-emploi-v4.zip` et décompresse-le dans les **Téléchargements** de ton Mac. Tu auras normalement `~/Downloads/crm-emploi-v4/` à côté de `~/Downloads/crm-emploi-github/` (le dépôt Git déjà cloné).
+Télécharge `crm-emploi-v4-1.zip` et décompresse-le dans les **Téléchargements** de ton Mac. Tu auras normalement `~/Downloads/crm-emploi-v4-1/` à côté de `~/Downloads/crm-emploi-github/` (le dépôt Git déjà cloné).
 
 ## 2. Préparer la mise à jour sans publier de données privées
 
 Dans le Terminal :
 
 ```bash
-bash ~/Downloads/crm-emploi-v4/mettre_a_jour_mac.sh
+bash ~/Downloads/crm-emploi-v4-1/mettre_a_jour_mac.sh
 ```
 
 Le script vérifie ton dossier, récupère les dernières modifications de `main`, copie le nouveau code (sans mots de passe ni base locale) et affiche `git status`. **Il ne publie rien automatiquement.**
@@ -22,7 +22,7 @@ Vérifie que les changements ne contiennent **aucun** `.env`, `secrets.toml`, `o
 
 ```bash
 cd ~/Downloads/crm-emploi-github
-git commit -m "CRM V4 - radar et guide simple"
+git commit -m "CRM V4.1 - jobboards quotidiens"
 git push origin main
 ```
 
@@ -34,7 +34,7 @@ Dans GitHub : **Yioux37/crm-emploi -> Actions -> Veille emploi quotidienne -> Ru
 
 Ensuite, regarde le résultat de l'action, les journaux et les trois fichiers publics `offres_detectees.csv`, `signaux_marche.csv` et `scan_rapport.json`.
 
-Le scan est réglé sur **14 cibles d'offres par jour**, dont 6 prioritaires, et **5 médias par jour**. Les autres sources sont interrogées progressivement, sur plusieurs jours. Une source ajoutée à la liste n'est pas une garantie d'offre ni de connexion réussie : vérifie les logs du premier scan.
+Le scan est réglé sur **20 cibles d'offres par jour**, dont 12 prioritaires (Indeed FR/CH/IT, Welcome to the Jungle, Cadremploi, HelloWork, APEC, FashionJobs FR/CH/IT, jobs.ch et jobup.ch), et **5 médias par jour**. Les autres sources sont interrogées progressivement, sur plusieurs jours. Une source ajoutée à la liste n'est pas une garantie d'offre ni de connexion réussie : vérifie les logs du premier scan.
 
 ### Réglages et secrets
 

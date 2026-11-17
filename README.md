@@ -1,6 +1,10 @@
-# CRM Carrière — Direction Opérations & Supply Chain (v4)
+# CRM Carrière — Direction Opérations & Supply Chain (v5)
 
 Un CRM **personnel** de recherche d'emploi pour les secteurs luxe, horlogerie, joaillerie et couture en France, Suisse et Italie. L'application associe la collecte d'offres à un **suivi des candidatures** (statuts, notes privées, contacts, prochaines actions, historique).
+
+## Nouveautés V5 — grands portails d'emploi
+
+Le catalogue comprend maintenant **109 cibles de découverte indexée** (contre 75 en V4) : les incontournables Indeed, Welcome to the Jungle, HelloWork, Cadremploi, APEC, FashionJobs et jobs.ch sont désormais en priorité quotidienne, ainsi que les trois versions nationales d'Indeed. Vingt domaines sont interrogés par scan, dont douze priorités fixes et huit en rotation. Un site dans le catalogue est une piste de recherche, **pas un connecteur direct qui garantit une annonce**. Les principaux nouveaux sites sont Meteojob, Monster FR, Figaro Emploi, Jobijoba, Jobrapido, Jooble, Job-Room suisse, Jobtic, Jobeo, Trovolavoro, Cliclavoro, les agences Adecco/Manpower et le portail EURES. Voir `SITES_PHARES.md`.
 
 ## Nouveautés V4 - radar élargi et mode d'emploi simple
 
@@ -11,7 +15,7 @@ Un CRM **personnel** de recherche d'emploi pour les secteurs luxe, horlogerie, j
 - **Page Sources surveillées** : liste des sources par famille, différence entre recherche indexée / connexion directe / presse, limites connues.
 - **Pistes de prise de contact** pour les actualités d'entreprise, avec brouillon personnalisable non envoyé automatiquement.
 
-Pour transmettre le mode d'emploi à papa, ouvre [`GUIDE_PAPA.md`](GUIDE_PAPA.md). Pour mettre à jour l'app, ouvre [`DEPLOIEMENT_V4.md`](DEPLOIEMENT_V4.md).
+Pour transmettre le mode d'emploi à papa, ouvre [`GUIDE_PAPA.md`](GUIDE_PAPA.md). Pour mettre à jour l'app, ouvre [`DEPLOIEMENT_V5.md`](DEPLOIEMENT_V5.md).
 
 ---
 
@@ -20,9 +24,11 @@ Pour transmettre le mode d'emploi à papa, ouvre [`GUIDE_PAPA.md`](GUIDE_PAPA.md
 La V3 apporte **quatre nouvelles voies** sans toucher aux notes et candidatures privées de la V2 :
 
 1. **Lever + Ashby + RSS/Teamtailor** : lecture d'annonces publiques depuis les interfaces autorisées et explicitement configurées dans `sources_plus.json`. Deux identifiants historiques servent d'exemples (à revalider) ; tu peux en ajouter d'autres au fil de la veille.
-2. **24 sites explorés** via leurs liens indexés : portails spécialisés luxe (FashionJobs), emploi cadres (APEC, Cadremploi, jobs.ch, jobup.ch, JobScout24, Welcome to the Jungle), cabinets de recrutement (Michael Page, Robert Walters, Hays, Morgan Philips, Luxe Talent), et offres d'autres ATS. Le scan interroge **12 sites par jour** en rotation, pas 24 simultanément ; un index peut ne pas retourner de résultat.
+2. **24 sites initialement explorés** via leurs liens indexés : portails spécialisés luxe (FashionJobs), emploi cadres (APEC, Cadremploi, jobs.ch, jobup.ch, JobScout24, Welcome to the Jungle), cabinets de recrutement (Michael Page, Robert Walters, Hays, Morgan Philips, Luxe Talent), et offres d'autres ATS. Le scan explorait ces cibles en rotation avant les extensions V4 et V5 ; un index peut ne pas retourner de résultat.
 3. **Signaux marché** : articles publics d'investissement, extension de manufactures, nominations et acquisitions chez les maisons ciblées ; visibles dans la page dédiée **Signaux marché**. Ce ne sont **pas** des postes ouverts.
 4. **Recherche Brave facultative** : si `BRAVE_SEARCH_API_KEY` est enregistré dans les Secrets GitHub, les recherches indexées et la veille presse passent par l'API Brave, sinon par `ddgs`. Aucune clé n'est nécessaire pour les flux ATS publics.
+
+Dans la V5, Indeed (FR/CH/IT), Welcome to the Jungle, Cadremploi et HelloWork passent **en priorité quotidienne via recherche indexée**. Il ne s'agit pas d'un accès direct à leurs sites ni d'une garantie de résultat. Consulte les diagnostics de scan pour vérifier les retours et les éventuelles limitations.
 
 Le scan conserve le filtrage France/Suisse/Italie, le niveau direction et le métier opérations/supply chain, la déduplication intersources et le scoring existants. Les **pays ne sont jamais devinés depuis les domaines des sites**.
 
@@ -34,7 +40,7 @@ Le scan conserve le filtrage France/Suisse/Italie, le niveau direction et le mé
 - L'API Offres d'emploi de France Travail n'est actuellement pas en libre distribution ; demander l'accès via France Travail si nécessaire plutôt que de tenter de la contourner.
 - **Aucun scan des sources externes n'a été exécuté dans l'environnement de livraison** ; les nouveaux parseurs sont testés hors réseau. Contrôler la première exécution dans GitHub Actions.
 
-Lis [`DEPLOIEMENT_V4.md`](DEPLOIEMENT_V4.md) pour remplacer la V2 sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
+Lis [`DEPLOIEMENT_V5.md`](DEPLOIEMENT_V4.md) pour remplacer la V2 sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
 
 ## Nouveautés de la v2
 

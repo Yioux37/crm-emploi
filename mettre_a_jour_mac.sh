@@ -44,12 +44,12 @@ git -C "$REPO_DIR" add \
   notifications.py link_health.py search_gateway.py sources_plus.py \
   source_catalog.py market_signals.py sources_plus.json requirements.txt \
   offres_detectees.csv signaux_marche.csv \
-  README.md DEPLOIEMENT_V4.md GUIDE_PAPA.md mettre_a_jour_mac.sh tests/
+  README.md DEPLOIEMENT_V4.md DEPLOIEMENT_V5.md GUIDE_PAPA.md SITES_PHARES.md mettre_a_jour_mac.sh tests/
 
 printf '\n--- MODIFICATIONS PRETES (non publiees) ---\n'
 git -C "$REPO_DIR" status --short
 printf '\nVerifier qu aucun fichier prive ne figure dans cette liste.\n'
 printf 'Ensuite, dans un Terminal: \n'
 printf 'cd ~/Downloads/crm-emploi-github\n'
-printf 'git commit -m "CRM V4 - radar elargi et guide simple"\n'
+printf 'git commit -m "CRM V5 - grands portails emploi"\n'
 printf 'git push origin main\n'

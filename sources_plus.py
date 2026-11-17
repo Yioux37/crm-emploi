@@ -253,13 +253,13 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
 
 
 def select_search_sites(day: date | None = None, budget: int | None = None) -> list[tuple]:
-    """Interroge les 6 sites essentiels puis fait tourner le reste des sites."""
+    """Interroge les sites incontournables chaque jour, puis fait tourner les autres."""
     day = day or date.today()
     if budget is None:
         try:
-            budget = int(os.getenv('INDEX_MAX_QUERIES', '14'))
+            budget = int(os.getenv('INDEX_MAX_QUERIES', '20'))
         except ValueError:
-            budget = 12
+            budget = 20
     budget = max(0, min(30, budget))
     always = [s for s in SEARCH_SITES if s[4]]
     rotating = [s for s in SEARCH_SITES if not s[4]]

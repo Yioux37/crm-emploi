@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -118,12 +118,30 @@ class PublicATSTests(unittest.TestCase):
         self.assertEqual(scraper.normaliser_source_plus(res[0])['Pays'], 'France')
         self.assertEqual(len(ddgs.queries), 1)
 
+    def test_core_jobboards_checked_daily(self):
+        from source_catalog import SEARCH_SITES, catalog_totals
+        essentials = {'apec.fr', 'cadremploi.fr', 'welcometothejungle.com',
+                      'hellowork.com', 'fr.indeed.com', 'ch.indeed.com',
+                      'it.indeed.com', 'jobs.ch', 'jobup.ch'}
+        daily = {domain for _, domain, _, _, priority in SEARCH_SITES if priority}
+        self.assertTrue(essentials.issubset(daily))
+        self.assertEqual(catalog_totals()['priority_daily'], 12)
+
     def test_budget_rotates_web_sources(self):
-        self.assertEqual(len(select_search_sites(date(2026, 11, 17), budget=12)), 12)
-        a = select_search_sites(date(2026, 11, 17), budget=12)
-        b = select_search_sites(date(2026, 11, 18), budget=12)
-        self.assertNotEqual(a[6:], b[6:])
-        self.assertEqual(a[:6], b[:6])
+        a = select_search_sites(date(2026, 11, 17), budget=20)
+        b = select_search_sites(date(2026, 11, 18), budget=20)
+        self.assertEqual(len(a), 20)
+        self.assertNotEqual(a[12:], b[12:])
+        self.assertEqual(a[:12], b[:12])
+        self.assertEqual({d for _, d, _, _, _ in a[:12]},
+                         {d for _, d, _, _, _ in b[:12]})
+
+    def test_all_rotation_targets_covered_within_eight_days(self):
+        from source_catalog import SEARCH_SITES
+        days = [date(2026, 11, 17) + timedelta(days=i) for i in range(20)]
+        visited = {domain for day in days for _, domain, _, _, _
+                   in select_search_sites(day, budget=20)}
+        self.assertEqual(visited, {domain for _, domain, _, _, _ in SEARCH_SITES})
 
 
 class SignalTests(unittest.TestCase):

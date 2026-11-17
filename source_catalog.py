@@ -17,21 +17,65 @@ SEARCH_SITES = [
     ('Jobup Suisse', 'jobup.ch', 'Portails cadres', 'fr', True),
 
     # Jobboards and specialized luxury/watchmaking platforms.
-    ('Cadremploi', 'cadremploi.fr', 'Portails cadres', 'fr', False),
-    ('Welcome to the Jungle', 'welcometothejungle.com', 'Portails cadres', 'fr', False),
-    ('HelloWork', 'hellowork.com', 'Portails cadres', 'fr', False),
+    ('Cadremploi', 'cadremploi.fr', 'Portails cadres', 'fr', True),
+    ('Welcome to the Jungle', 'welcometothejungle.com', 'Portails cadres', 'fr', True),
+    ('HelloWork', 'hellowork.com', 'Portails cadres', 'fr', True),
     ('France Travail (index public)', 'francetravail.fr', 'Portails cadres', 'fr', False),
     ('JobScout24', 'jobscout24.ch', 'Portails cadres', 'en', False),
     ('Jobwatch Horlogerie', 'jobwatch.ch', 'Portails sp\u00e9cialis\u00e9s', 'fr', False),
     ('Cerulean Suisse luxe', 'ceruleanjobs.ch', 'Portails sp\u00e9cialis\u00e9s', 'en', False),
-    ('Indeed France (index public)', 'fr.indeed.com', 'Portails cadres', 'fr', False),
-    ('Indeed Suisse (index public)', 'ch.indeed.com', 'Portails cadres', 'en', False),
-    ('Indeed Italie (index public)', 'it.indeed.com', 'Portails cadres', 'it', False),
+    ('Indeed France (index public)', 'fr.indeed.com', 'Portails cadres', 'fr', True),
+    ('Indeed Suisse (index public)', 'ch.indeed.com', 'Portails cadres', 'en', True),
+    ('Indeed Italie (index public)', 'it.indeed.com', 'Portails cadres', 'it', True),
     ('InfoJobs Italie', 'infojobs.it', 'Portails cadres', 'it', False),
     ('Monster Italie', 'monster.it', 'Portails cadres', 'it', False),
     ('Experteer', 'experteer.com', 'Portails cadres', 'en', False),
     ('Business of Fashion Careers', 'businessoffashion.com', 'Portails sp\u00e9cialis\u00e9s', 'en', False),
     ('FashionUnited Careers', 'fashionunited.com', 'Portails sp\u00e9cialis\u00e9s', 'en', False),
+
+
+    # Mainstream general job boards and aggregators: INDEX ONLY. No direct
+    # crawling or private account access, and no guarantee of fresh results.
+    ('Meteojob France', 'meteojob.com', 'Portails cadres', 'fr', False),
+    ('Monster France', 'monster.fr', 'Portails cadres', 'fr', False),
+    ('Jobijoba France', 'jobijoba.com', 'Portails cadres', 'fr', False),
+    ('Jobrapido France', 'fr.jobrapido.com', 'Portails cadres', 'fr', False),
+    ('Jooble France', 'fr.jooble.org', 'Portails cadres', 'fr', False),
+    ('Figaro Emploi', 'emploi.lefigaro.fr', 'Portails cadres', 'fr', False),
+    ('Optioncarriere France', 'optioncarriere.com', 'Portails cadres', 'fr', False),
+    ('Talent.com France', 'talent.com', 'Portails cadres', 'fr', False),
+    ('Glassdoor France', 'glassdoor.fr', 'Portails cadres', 'fr', False),
+    ('Leboncoin Emploi', 'leboncoin.fr', 'Portails cadres', 'fr', False),
+    ('Experteer France', 'experteer.fr', 'Portails cadres', 'fr', False),
+
+    # Switzerland: Job-Room public service and French/German-speaking boards.
+    ('Job-Room Suisse', 'job-room.ch', 'Portails cadres', 'fr', False),
+    ('Jobwinner Suisse', 'jobwinner.ch', 'Portails cadres', 'fr', False),
+    ('Jobtic Suisse', 'jobtic.ch', 'Portails cadres', 'fr', False),
+    ('Jobeo Suisse', 'jobeo.ch', 'Portails cadres', 'fr', False),
+    ('Careerjet Suisse', 'careerjet.ch', 'Portails cadres', 'fr', False),
+    ('Optioncarriere Suisse', 'optioncarriere.ch', 'Portails cadres', 'fr', False),
+    ('Jobagent Suisse', 'jobagent.ch', 'Portails cadres', 'fr', False),
+    ('Emploi Romand', 'emploi-romand.ch', 'Portails cadres', 'fr', False),
+
+    # Italy: national portals, meta-search and local recruiters.
+    ('Trovolavoro Italie', 'trovolavoro.corriere.it', 'Portails cadres', 'it', False),
+    ('Cliclavoro Italie', 'cliclavoro.gov.it', 'Portails cadres', 'it', False),
+    ('Jooble Italie', 'it.jooble.org', 'Portails cadres', 'it', False),
+    ('Jobrapido Italie', 'it.jobrapido.com', 'Portails cadres', 'it', False),
+    ('Experteer Italie', 'experteer.it', 'Portails cadres', 'it', False),
+    ('Glassdoor Italie', 'glassdoor.it', 'Portails cadres', 'it', False),
+    ('Adecco Italie', 'adecco.it', 'Cabinets de Recrutement', 'it', False),
+    ('Gi Group Italie', 'gigroup.it', 'Cabinets de Recrutement', 'it', False),
+    ('Manpower Italie', 'manpower.it', 'Cabinets de Recrutement', 'it', False),
+
+    # Additional recruiters and cross-border portals for executive functions.
+    ('Adecco France', 'adecco.fr', 'Cabinets de Recrutement', 'fr', False),
+    ('Randstad France', 'randstad.fr', 'Cabinets de Recrutement', 'fr', False),
+    ('Manpower France', 'manpower.fr', 'Cabinets de Recrutement', 'fr', False),
+    ('Expectra France', 'expectra.fr', 'Cabinets de Recrutement', 'fr', False),
+    ('Adecco Suisse', 'adecco.ch', 'Cabinets de Recrutement', 'fr', False),
+    ('EURES Europe', 'eures.europa.eu', 'Portails cadres', 'en', False),
 
     # Recruiters and retained executive-search firms. Many missions are confidential;
     # search coverage does NOT imply that their mandates are available online.

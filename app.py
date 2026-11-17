@@ -526,7 +526,7 @@ elif page == "Relances":
     st.caption("Après une relance, mets à jour la dernière action et fixe une nouvelle date sur la fiche.")
 
 elif page == "Sources surveillées":
-    st.subheader("Sources Quelles sources le radar surveille-t-il ?")
+    st.subheader("Sources surveillées : où cherche le radar ?")
     totals = catalog_totals()
     c1, c2, c3 = st.columns(3)
     c1.metric("Sites recherchés", totals["index_targets"])

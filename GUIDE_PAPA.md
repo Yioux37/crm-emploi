@@ -34,3 +34,13 @@ Un score élevé signifie **« ce poste correspond bien à mes critères »**. C
 Tu n'as pas besoin de toucher à **GitHub**, d'installer **Python** ou de lancer toi-même le scanner. La veille est programmée par l'administrateur. Tu peux te concentrer sur la lecture et le suivi des opportunités.
 
 **Important :** le responsable de l'application doit configurer une base PostgreSQL persistante avant de conserver des informations personnelles importantes dans Streamlit Cloud. Ne partage jamais le mot de passe dans une capture d'écran ou une conversation.
+
+## Où sont cherchées les offres ?
+
+Le radar vérifie chaque jour via un moteur de recherche les grandes plateformes : **Indeed**, **Welcome to the Jungle**, **APEC**, **Cadremploi**, **HelloWork**, **FashionJobs**, **jobs.ch** et **Jobup.ch**. Des maisons de luxe et des cabinets de recrutement sont ensuite interrogés à tour de rôle. Certains sites ne permettent pas une collecte directe ; une absence de résultat ne signifie pas qu'il n'existe aucune offre.
+
+**Ton geste utile :** dans l'onglet *Sources surveillées*, tu peux ouvrir directement les sites, puis vérifier les offres qui t'intéressent. Le lien de chaque offre dans *Opportunités* permet de consulter la publication d'origine avant de postuler.
+
+
+## D'ou viennent les offres ?
+Le radar cherche sur les grands sites d'emploi (Indeed, Welcome to the Jungle, APEC, Cadremploi, HelloWork), les plateformes suisses et italiennes, les sites des maisons de luxe et les cabinets de recrutement. Il ne garantit pas de trouver toutes les offres. Ouvre **Sources surveillees** pour voir le catalogue. Une opportunite doit toujours etre confirmee sur le site d'origine.
