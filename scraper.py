@@ -4,6 +4,13 @@ import re
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
+from collections import Counter
+from datetime import date
+import argparse
+import json
+from matching import country_from_location, canonical_url
+from merge_feed import merge_feed
+from storage import SCRAPER_COLUMNS
 
 try:
     from dotenv import load_dotenv
@@ -108,47 +115,12 @@ ENTREPRISES_EXCLUES = [
 # ==============================================================================
 
 def verifier_pays_strict(texte, pays_api=None, lien=""):
-    if pays_api:
-        p = str(pays_api).lower()
-        if "france" in p:
-            return "France"
-        if "switzerland" in p or "suisse" in p:
-            return "Suisse"
-        if "italy" in p or "italia" in p or "italie" in p:
-            return "Italie"
+    """Detecte depuis la localisation de l'annonce, jamais depuis l'URL ou le filtre.
 
-    t = f"{texte} {lien}".lower()
-
-    mots_suisse = [
-        "suisse", "switzerland", "svizzera", "schweiz", ".ch/", "ch.linkedin.com",
-        "genève", "geneva", "zurich", "zürich", "lausanne", "neuchâtel", "neuchatel",
-        "bienne", "biel", "schaffhausen", "le brassus", "plan-les-ouates",
-        "la chaux-de-fonds", "le locle", "nyon", "meyrin", "zug", "basel", "bâle",
-        "val de travers", "jura bernois", "fribourg", "vaud", "carouge", "versoix",
-        "saint-imier", "grenchen", "granges", "solothurn", "soleure", "mendrisio"
-    ]
-    mots_italie = [
-        "italie", "italy", "italia", ".it/", "it.linkedin.com",
-        "milan", "milano", "florence", "firenze", "rome", "roma",
-        "turin", "torino", "vicenza", "valenza", "bologna", "padova", "venezia",
-        "scandicci", "novara", "biella", "varese", "como", "côme", "arezzo", "napoli"
-    ]
-    mots_france = [
-        "france", ".fr/", "fr.linkedin.com",
-        "paris", "lyon", "bordeaux", "besançon", "besancon", "annecy",
-        "marseille", "île-de-france", "ile-de-france", "neuilly", "boulogne",
-        "nantes", "lille", "clermont-ferrand", "pantin", "romans-sur-isère",
-        "saint-étienne", "val-de-reuil", "issoudun", "orléans", "tours"
-    ]
-
-    if any(m in t for m in mots_suisse):
-        return "Suisse"
-    if any(m in t for m in mots_italie):
-        return "Italie"
-    if any(m in t for m in mots_france):
-        return "France"
-
-    return None
+    pays_api n'est pris en compte que si c'est un champ du poste (API de l'ATS).
+    En cas d'ambiguite, on laisse l'offre de cote plutot que de l'etiqueter a tort.
+    """
+    return country_from_location(texte, country_field=pays_api)
 
 
 def classer_niveau(titre):
@@ -357,7 +329,7 @@ def fetch_linkedin_jobs():
 
                 titre = titre_el.get_text(strip=True)
                 entreprise = ent_el.get_text(strip=True)
-                localisation = loc_el.get_text(strip=True) if loc_el else pays_recherche
+                localisation = loc_el.get_text(strip=True) if loc_el else ""
                 lien = lien_el.get("href", "").split("?")[0]
 
                 if not lien or lien in liens_vus:
@@ -371,7 +343,7 @@ def fetch_linkedin_jobs():
                 if not secteur_valide:
                     continue
 
-                pays_valide = verifier_pays_strict(contexte, pays_api=pays_recherche, lien=lien)
+                pays_valide = verifier_pays_strict(localisation)
                 if not pays_valide:
                     continue
 
@@ -445,7 +417,9 @@ def fetch_portails_directs():
                     loc = job.get("locationsText", "") or ""
                     path = job.get("externalPath", "") or ""
                     bullets = " ".join(job.get("bulletFields", []) or [])
-                    lien = f"{base_url}{path}" if path else base_url
+                    if not path:
+                        continue
+                    lien = f"{base_url}{path}"
                     if lien in liens_vus:
                         continue
                     liens_vus.add(lien)
@@ -456,7 +430,7 @@ def fetch_portails_directs():
                     secteur_valide = valider_et_classer_offre(titre, entreprise, contexte, est_post=False, lien=lien)
                     if not secteur_valide:
                         continue
-                    pays_valide = verifier_pays_strict(contexte, lien=lien)
+                    pays_valide = verifier_pays_strict(loc)
                     if not pays_valide:
                         continue
 
@@ -492,13 +466,15 @@ def fetch_portails_directs():
                     loc_obj = job.get("location", {}) or {}
                     loc = f"{loc_obj.get('city', '')} {loc_obj.get('country', '')}"
                     job_id = job.get("id", "")
-                    lien = f"https://jobs.smartrecruiters.com/{sr_id}/{job_id}" if job_id else sr_url
+                    if not job_id:
+                        continue
+                    lien = f"https://jobs.smartrecruiters.com/{sr_id}/{job_id}"
 
                     contexte = f"{titre} {loc} {nom_maison}"
                     secteur_valide = valider_et_classer_offre(titre, nom_maison, contexte, est_post=False, lien=lien)
                     if not secteur_valide:
                         continue
-                    pays_valide = verifier_pays_strict(contexte, pays_api=loc_obj.get("country", ""), lien=lien)
+                    pays_valide = verifier_pays_strict(loc_obj.get("city", ""), pays_api=loc_obj.get("country", ""))
                     if not pays_valide:
                         continue
 
@@ -528,10 +504,12 @@ def fetch_portails_directs():
                 for job in resp.json().get("jobs", []):
                     titre = job.get("title", "") or ""
                     loc = (job.get("location", {}) or {}).get("name", "")
-                    lien = job.get("absolute_url", gh_url)
+                    lien = job.get("absolute_url", "")
+                    if not canonical_url(lien):
+                        continue
                     contexte = f"{titre} {loc} {nom_maison}"
                     secteur_valide = valider_et_classer_offre(titre, nom_maison, contexte, est_post=False, lien=lien)
-                    pays_valide = verifier_pays_strict(contexte, lien=lien)
+                    pays_valide = verifier_pays_strict(loc)
                     if secteur_valide and pays_valide:
                         offres.append({
                             "Titre": titre,
@@ -594,7 +572,9 @@ def fetch_web_et_posts():
                     resultats = list(ddgs.text(query, max_results=20))
                     for r in resultats:
                         titre_web = r.get("title", "")
-                        lien_web = r.get("href", "#")
+                        lien_web = r.get("href", "")
+                        if not canonical_url(lien_web):
+                            continue
                         extrait = r.get("body", "")
                         est_post = (source_nom == "LinkedIn (Posts)")
 
@@ -616,7 +596,7 @@ def fetch_web_et_posts():
                         if not secteur_valide:
                             continue
 
-                        pays_valide = verifier_pays_strict(f"{titre_web} {extrait}", lien=lien_web)
+                        pays_valide = verifier_pays_strict(f"{titre_web} {extrait}")
                         if not pays_valide:
                             continue
 
@@ -647,99 +627,56 @@ def fetch_web_et_posts():
 # 6. SAUVEGARDE, PURGE & PRÉSERVATION DES DONNÉES CRM
 # ==============================================================================
 
-def executer_tout():
-    colonnes_scraper = [
-        "Titre", "Entreprise", "Secteur", "Pays", "Source", "Lien",
-        "Niveau estimé", "Date de détection"
-    ]
-    colonnes_crm = [
-        "Statut", "Priorité", "Contact / Chasseur", "Date dernière action", "Notes"
-    ]
-    toutes_colonnes = colonnes_scraper + colonnes_crm
+def executer_tout(output="offres_detectees.csv", report="scan_rapport.json"):
+    """Scrape uniquement les annonces publiques; ne lit/jamais n'ecrit le suivi CRM."""
+    collected = []
+    counts = {}
+    for name, provider in (
+        ("LinkedIn Offres", fetch_linkedin_jobs),
+        ("Portails ATS", fetch_portails_directs),
+        ("Web et posts", fetch_web_et_posts),
+    ):
+        try:
+            rows = provider()
+        except Exception as exc:
+            print(f"ERREUR [{name}]: {exc}")
+            rows = []
+        counts[name] = len(rows)
+        collected.extend(rows)
 
-    toutes_les_offres = []
-    toutes_les_offres.extend(fetch_linkedin_jobs())
-    toutes_les_offres.extend(fetch_portails_directs())
-    toutes_les_offres.extend(fetch_web_et_posts())
+    current_day = date.today().isoformat()
+    output_path = os.path.abspath(output)
+    report_path = os.path.abspath(report)
+    result = {"date_scan": current_day, "par_source": counts,
+              "annonces_brutes": len(collected), "annonces_nouvelles": 0,
+              "total_historique": 0, "statut": "ok" if collected else "aucun_resultat"}
+    if not collected:
+        # Ne surtout pas effacer le flux conserve en cas de panne des sources externes.
+        with open(report_path, "w", encoding="utf-8") as file:
+            json.dump(result, file, ensure_ascii=False, indent=2)
+        raise RuntimeError("Aucune source n'a fourni d'offre; flux existant conserve. Verifier les logs.")
 
-    df_nouveau = pd.DataFrame(toutes_les_offres, columns=colonnes_scraper)
-    df_nouveau["Statut"] = "🆕 À analyser"
-    df_nouveau["Priorité"] = "🟠 Moyenne"
-    df_nouveau["Contact / Chasseur"] = ""
-    df_nouveau["Date dernière action"] = ""
-    df_nouveau["Notes"] = ""
-
-    if os.path.exists("offres_emploi.csv"):
-        df_existant = pd.read_csv("offres_emploi.csv")
-        lignes_propres = []
-        for _, row in df_existant.iterrows():
-            titre_row = row.get("Titre", "")
-            ent_row = row.get("Entreprise", "")
-            lien_row = str(row.get("Lien", "#"))
-            source_propre = row.get("Source", "") if row.get("Source") == "Approche directe / Réseau" else deduire_source(lien_row, row.get("Source", ""))
-
-            if source_propre == "Approche directe / Réseau" or lien_row.startswith("manuel://"):
-                lignes_propres.append({col: row.get(col, "") if pd.notna(row.get(col, "")) else "" for col in toutes_colonnes})
-                continue
-
-            est_post_row = (source_propre == "LinkedIn (Posts)")
-            secteur_ok = valider_et_classer_offre(
-                titre_row, ent_row, row.get("Secteur", ""),
-                est_post=est_post_row, lien=lien_row
-            )
-            pays_ok = verifier_pays_strict(
-                f"{titre_row} {row.get('Pays', '')}",
-                pays_api=row.get("Pays", ""), lien=lien_row
-            )
-
-            if secteur_ok and pays_ok:
-                lignes_propres.append({
-                    "Titre": titre_row,
-                    "Entreprise": ent_row,
-                    "Secteur": secteur_ok,
-                    "Pays": pays_ok,
-                    "Source": source_propre,
-                    "Lien": lien_row,
-                    "Niveau estimé": row.get("Niveau estimé", classer_niveau(titre_row)),
-                    "Date de détection": row.get("Date de détection", pd.Timestamp.today().strftime("%Y-%m-%d")),
-                    "Statut": row.get("Statut", "🆕 À analyser") if pd.notna(row.get("Statut")) else "🆕 À analyser",
-                    "Priorité": row.get("Priorité", "🟠 Moyenne") if pd.notna(row.get("Priorité")) else "🟠 Moyenne",
-                    "Contact / Chasseur": row.get("Contact / Chasseur", "") if pd.notna(row.get("Contact / Chasseur")) else "",
-                    "Date dernière action": row.get("Date dernière action", "") if pd.notna(row.get("Date dernière action")) else "",
-                    "Notes": row.get("Notes", "") if pd.notna(row.get("Notes")) else ""
-                })
-
-        df_existant_propre = pd.DataFrame(lignes_propres, columns=toutes_colonnes)
-        nb_avant = len(df_existant_propre)
-        df_final = pd.concat([df_existant_propre, df_nouveau], ignore_index=True)
-    else:
-        nb_avant = 0
-        df_final = df_nouveau
-
-    if df_final.empty:
-        pd.DataFrame(columns=toutes_colonnes).to_csv("offres_emploi.csv", index=False)
-        print("⚠️ Aucune offre ou post de recrutement trouvé sur ce passage.")
-        return
-
-    df_final = df_final[df_final["Pays"].isin(["France", "Suisse", "Italie"])]
-
-    df_final = df_final.drop_duplicates(subset=["Lien"], keep="first")
-    df_final["cle_doublon"] = (
-        df_final["Titre"].astype(str).str.lower().str.strip() + " | " +
-        df_final["Entreprise"].astype(str).str.lower().str.strip() + " | " +
-        df_final["Pays"].astype(str).str.lower().str.strip()
-    )
-    df_final = df_final.drop_duplicates(subset=["cle_doublon"], keep="first")
-    df_final = df_final.drop(columns=["cle_doublon"])
-
-    df_final.to_csv("offres_emploi.csv", index=False)
-
-    nouvelles = max(0, len(df_final) - nb_avant)
-    print("\n" + "=" * 55)
-    print(f"✅ TERMINÉ ! {nouvelles} nouvelles offres/posts ajoutés au CRM.")
-    print(f"📂 Total dans le CRM : {len(df_final)}")
-    print("=" * 55)
+    previous = []
+    if os.path.isfile(output_path):
+        previous = pd.read_csv(output_path, dtype=str, keep_default_na=False).to_dict("records")
+    merged_old = merge_feed(previous, [], current_day)
+    merged = merge_feed(merged_old, collected, current_day)
+    result["annonces_nouvelles"] = max(0, len(merged) - len(merged_old))
+    result["total_historique"] = len(merged)
+    # L'ecriture temporaire+renommage evite les fichiers tronques si le scan est interrompu.
+    temp = output_path + ".tmp"
+    pd.DataFrame(merged, columns=SCRAPER_COLUMNS).to_csv(temp, index=False, encoding="utf-8")
+    os.replace(temp, output_path)
+    with open(report_path, "w", encoding="utf-8") as file:
+        json.dump(result, file, ensure_ascii=False, indent=2)
+    print(f"Fin du scan : {result['annonces_nouvelles']} nouvelles offres, "
+          f"{len(merged)} offres conservees au total. CRM personnel intact.")
+    return result
 
 
 if __name__ == "__main__":
-    executer_tout()
+    cli = argparse.ArgumentParser(description="Veille publique - sans ecriture du CRM")
+    cli.add_argument("--output", default="offres_detectees.csv")
+    cli.add_argument("--report", default="scan_rapport.json")
+    args = cli.parse_args()
+    executer_tout(args.output, args.report)

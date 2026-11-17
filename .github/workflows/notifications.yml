@@ -1,0 +1,38 @@
+name: Rappels emploi optionnels
+
+on:
+  schedule:
+    - cron: '00 07 * * *'  # horaire UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    if: ${{ vars.EMAIL_ALERTS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      ALERT_TO: ${{ secrets.ALERT_TO }}
+      ALERT_FROM: ${{ secrets.ALERT_FROM }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Envoyer les rappels
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL est necessaire aux e-mails en GitHub Actions" >&2
+            exit 1
+          fi
+          python notifications.py --mode daily
+          if [ "$(date -u +%u)" = "1" ]; then
+            python notifications.py --mode weekly
+          fi

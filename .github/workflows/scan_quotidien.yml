@@ -1,34 +1,38 @@
-name: Veille Emploi Quotidienne
+name: Veille emploi quotidienne
 
 on:
   schedule:
-    - cron: '30 6 * * *'
+    - cron: '30 6 * * *'   # 06:30 UTC (07:30 en hiver a Paris)
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: emploi-public-feed
+  cancel-in-progress: false
+
 jobs:
-  run-scraper:
+  scan:
     runs-on: ubuntu-latest
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4
-
       - name: Configurer Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Installer les dependances
         run: pip install -r requirements.txt
-
-      - name: Lancer le scraper
-        run: python scraper.py
-
-      - name: Sauvegarder les nouvelles offres dans le CSV
+      - name: Mettre a jour uniquement les annonces publiques
+        run: python scraper.py --output offres_detectees.csv --report scan_rapport.json
+      - name: Committer le flux sans les donnees CRM personnelles
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add offres_emploi.csv
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Mise a jour quotidienne des offres" && git push)
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add offres_detectees.csv scan_rapport.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Veille quotidienne: annonces publiques"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
