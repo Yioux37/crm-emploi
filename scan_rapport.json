@@ -8,7 +8,7 @@
     "Portails specialises": 0
   },
   "annonces_brutes": 11,
-  "annonces_nouvelles": 1,
+  "annonces_nouvelles": 0,
   "total_historique": 9,
   "statut": "ok",
   "etat_sources": {
@@ -84,35 +84,75 @@
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Rolex": {
+    "Index / Armani": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Patek Philippe": {
+    "Index / Valentino": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Audemars Piguet": {
+    "Index / Greenhouse Jobs": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Breitling": {
+    "Index / Lever EU": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Cartier": {
+    "Index / Lever Global": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Prada Group": {
+    "Index / Ashby Jobs": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Moncler Group": {
+    "Index / SmartRecruiters Jobs": {
       "brutes": 0,
       "etat": "erreur"
     },
-    "Index / Gucci": {
+    "Index / Workday Careers": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Teamtailor Careers": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Recruitee Careers": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / France Travail (index public)": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / JobScout24": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Jobwatch Horlogerie": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Cerulean Suisse luxe": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / InfoJobs Italie": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Monster Italie": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Experteer": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Business of Fashion Careers": {
       "brutes": 0,
       "etat": "erreur"
     }
