@@ -1,18 +1,47 @@
 {
-  "description": "Explicitly configured public ATS boards. IDs and public availability should be verified before relying on a connector. No passwords or application data are collected.",
+  "description": "V6: identifiants explicites de flux publics; verifiez chaque identifiant avant de compter sur la source. Aucune authentification, aucun cout.",
   "lever": [
-    {"company": "Karl Lagerfeld", "site": "karllagerfeld", "region": "eu"}
+    {
+      "company": "Karl Lagerfeld",
+      "site": "karllagerfeld",
+      "region": "eu"
+    }
   ],
   "ashby": [
-    {"company": "Veliu", "board": "veliu"}
+    {
+      "company": "Veliu",
+      "board": "veliu"
+    }
   ],
   "greenhouse": [
-    {"company": "Jacquemus", "board": "jacquemus"},
-    {"company": "Isabel Marant", "board": "isabelmarant"}
+    {
+      "company": "Jacquemus",
+      "board": "jacquemus"
+    },
+    {
+      "company": "Isabel Marant",
+      "board": "isabelmarant"
+    }
   ],
   "smartrecruiters": [
-    {"company": "Breitling", "company_id": "Breitling"},
-    {"company": "Audemars Piguet", "company_id": "AudemarsPiguet"}
+    {
+      "company": "Breitling",
+      "company_id": "Breitling"
+    },
+    {
+      "company": "Audemars Piguet",
+      "company_id": "AudemarsPiguet"
+    },
+    {
+      "company": "Richard Mille",
+      "company_id": "RichardMille"
+    },
+    {
+      "company": "Acrotec Group",
+      "company_id": "AcrotecGroup"
+    }
   ],
-  "rss": []
+  "rss": [],
+  "workable": [],
+  "recruitee": []
 }

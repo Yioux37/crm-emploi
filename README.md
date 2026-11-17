@@ -1,10 +1,24 @@
-# CRM Carrière — Direction Opérations & Supply Chain (v5)
+# CRM Carrière — Direction Opérations & Supply Chain (v6)
 
 Un CRM **personnel** de recherche d'emploi pour les secteurs luxe, horlogerie, joaillerie et couture en France, Suisse et Italie. L'application associe la collecte d'offres à un **suivi des candidatures** (statuts, notes privées, contacts, prochaines actions, historique).
 
+## V6 — sources gratuites et radar qui explique ses résultats (novembre 2026)
+
+**Aucune carte bancaire et aucun abonnement/API payante requis.** La collecte s'appuie sur les pages d'emploi publiques des ATS déjà configurés, sur deux formats configurables supplémentaires (**Workable et Recruitee**) et sur un index web public gratuit, lorsque celui-ci répond. Tous les identifiants d'entreprises doivent être vérifiés : un connecteur pris en charge n'est pas nécessairement connecté à une maison réelle.
+
+- **109 domaines restent dans le catalogue de découverte**, dont 12 prioritaires. Jusqu'à **30 requêtes d'index** sont tentées par jour, mais dès que DDGS échoue 3 fois de suite, le moteur arrête la série. Les sites restants sont signalés **« non interrogés »**, et non **« sans offres »**.
+- Les recherches d'index utilisent des expressions courtes plutôt que des filtres OR géants. Cela améliore la tolérance, **sans garantir** des résultats depuis Indeed, LinkedIn ou les autres jobboards protégés.
+- **Collecte directe en priorité** sur Workday (endpoints historiques à valider), Greenhouse, Lever, Ashby, SmartRecruiters et RSS/Atom ; les API publiques Workable et Recruitee sont ajoutées, **à activer avec des identifiants connus**. Les appels non autorisés à l'endpoint invité LinkedIn et les anciennes recherches web complexes **ne sont plus lancés**.
+- Les étapes **Sources surveillées → Santé du radar** et **Statistiques** affichent les annonces accessibles, celles conservées après filtrage, les erreurs et les sources reportées. Un scan avec 0 offre ne vide jamais le flux existant.
+- **Déploiement sûr** : `mettre_a_jour_mac.sh` utilise `~/crm-emploi-github`, vérifie le dépôt, et préserve `offres_detectees.csv`, `signaux_marche.csv`, `scan_rapport.json` collectés par GitHub Actions.
+
+Voir **`DEPLOIEMENT_V6.md`**. Le radar a été testé **hors réseau seulement** : l'état réel des sources sera connu après le prochain scan GitHub. Les candidatures privées nécessitent toujours PostgreSQL persistant sur Streamlit Cloud.
+
+---
+
 ## Nouveautés V5 — grands portails d'emploi
 
-Le catalogue comprend maintenant **109 cibles de découverte indexée** (contre 75 en V4) : les incontournables Indeed, Welcome to the Jungle, HelloWork, Cadremploi, APEC, FashionJobs et jobs.ch sont désormais en priorité quotidienne, ainsi que les trois versions nationales d'Indeed. Vingt domaines sont interrogés par scan, dont douze priorités fixes et huit en rotation. Un site dans le catalogue est une piste de recherche, **pas un connecteur direct qui garantit une annonce**. Les principaux nouveaux sites sont Meteojob, Monster FR, Figaro Emploi, Jobijoba, Jobrapido, Jooble, Job-Room suisse, Jobtic, Jobeo, Trovolavoro, Cliclavoro, les agences Adecco/Manpower et le portail EURES. Voir `SITES_PHARES.md`.
+Le catalogue comprend maintenant **109 cibles de découverte indexée** (contre 75 en V4) : les incontournables Indeed, Welcome to the Jungle, HelloWork, Cadremploi, APEC, FashionJobs et jobs.ch sont désormais en priorité quotidienne, ainsi que les trois versions nationales d'Indeed. La V5 interrogeait initialement 20 domaines par scan ; la V6 en prévoit jusqu'à 30, mais peut s'arrêter en cas de panne du moteur. Un site dans le catalogue est une piste de recherche, **pas un connecteur direct qui garantit une annonce**. Les principaux nouveaux sites sont Meteojob, Monster FR, Figaro Emploi, Jobijoba, Jobrapido, Jooble, Job-Room suisse, Jobtic, Jobeo, Trovolavoro, Cliclavoro, les agences Adecco/Manpower et le portail EURES. Voir `SITES_PHARES.md`.
 
 ## Nouveautés V4 - radar élargi et mode d'emploi simple
 
@@ -40,7 +54,7 @@ Le scan conserve le filtrage France/Suisse/Italie, le niveau direction et le mé
 - L'API Offres d'emploi de France Travail n'est actuellement pas en libre distribution ; demander l'accès via France Travail si nécessaire plutôt que de tenter de la contourner.
 - **Aucun scan des sources externes n'a été exécuté dans l'environnement de livraison** ; les nouveaux parseurs sont testés hors réseau. Contrôler la première exécution dans GitHub Actions.
 
-Lis [`DEPLOIEMENT_V5.md`](DEPLOIEMENT_V4.md) pour remplacer la V2 sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
+Lis [`DEPLOIEMENT_V6.md`](DEPLOIEMENT_V6.md) pour remplacer l'ancienne version sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
 
 ## Nouveautés de la v2
 
@@ -86,7 +100,7 @@ Pour lancer un scan manuel depuis le terminal :
 python scraper.py --output offres_detectees.csv --report scan_rapport.json
 ```
 
-Ou utiliser le bouton **Rechercher de nouvelles offres** dans la barre latérale. Les scans utilisent les ATS déjà configurés, des APIs publiques Lever/Ashby, des flux RSS et la recherche web via `ddgs` ou Brave ; le collecteur LinkedIn hérité de la V2 est également présent et mérite une revue de conformité. Les sites tiers peuvent bloquer ou changer leur HTML/API ; un scan en panne **ne supprime aucune offre** et remonte une erreur. Le fonctionnement des sources externes doit être vérifié sur le réseau du déploiement.
+Ou utiliser le bouton **Rechercher de nouvelles offres** dans la barre latérale. Les scans V6 utilisent les ATS publics configurés, les flux RSS et la recherche web via `ddgs`. Les collecteurs LinkedIn invités et la recherche historique complexe ne sont plus exécutés. Les sites tiers peuvent bloquer ou changer leurs API ; le diagnostic l'indique, et un scan sans résultat **ne supprime aucune offre**. Le fonctionnement des sources externes doit être vérifié sur le réseau du déploiement.
 
 ## Hébergement et préservation des données — important
 
@@ -112,7 +126,7 @@ L'ancien `offres_emploi.csv` mélangeait les informations publiques et privées.
 
 ## GitHub Actions
 
-`.github/workflows/scan_quotidien.yml` lance la collecte quotidienne à 06:30 **UTC** et committe le flux public. Le CRM privé reste en base ; il n'y a **plus de synchronisation GitHub des statuts/notes**. Un incident de collecte apparaît comme échec du workflow et le flux existant reste intact. L'heure à Paris varie avec le passage heure d'été/hiver.
+`.github/workflows/scan_quotidien.yml` lance la collecte quotidienne à 06:30 **UTC** et committe le flux public. Le CRM privé reste en base ; il n'y a **plus de synchronisation GitHub des statuts/notes**. Un incident de collecte apparaît dans `scan_rapport.json`, et le workflow émet un avertissement. Le flux existant reste intact même avec 0 offre. L'heure à Paris varie avec le passage heure d'été/hiver.
 
 Pour utiliser les e-mails facultatifs dans `.github/workflows/notifications.yml`, il faut :
 

@@ -266,7 +266,12 @@ if page == "Accueil":
             import json
             try:
                 report = json.loads((ROOT / "scan_rapport.json").read_text(encoding="utf-8"))
-                st.caption(f"Dernier scan enregistré : {report.get('date_scan', '—')} · {report.get('statut', 'inconnu')}")
+                st.caption(f"Dernier scan enregistré : {report.get('date_scan', '—')} · "
+                           f"{report.get('annonces_nouvelles', 0)} nouvelle(s) offre(s)")
+                if report.get('statut') in ('degrade', 'partiel'):
+                    st.warning("Certaines sources n'ont pas répondu au dernier scan. "
+                               "Les annonces déjà trouvées sont conservées. "
+                               "Voir Sources surveillées → Santé du radar.")
             except (ValueError, OSError):
                 pass
 
@@ -536,8 +541,8 @@ elif page == "Sources surveillées":
             "Pour la plupart des sites, le radar cherche seulement des annonces "
             "déjà publiques dans un moteur de recherche. "
             "Les autres sites tournent entre les jours pour limiter les requêtes.")
-    tab_jobs, tab_news, tab_direct, tab_limits = st.tabs([
-        "Emploi et chasse", "Presse et tendances", "Flux directs", "Limites et accès"])
+    tab_jobs, tab_news, tab_direct, tab_health, tab_limits = st.tabs([
+        "Emploi et chasse", "Presse et tendances", "Flux directs", "Santé du radar", "Limites et accès"])
     with tab_jobs:
         sites = pd.DataFrame([
             {"Site": name, "Famille": kind, "Lien": "https://" + domain,
@@ -560,7 +565,7 @@ elif page == "Sources surveillées":
                      column_config={"Lien": st.column_config.LinkColumn("Site public")})
     with tab_direct:
         st.write("Les flux publics (Lever, Ashby, Greenhouse, SmartRecruiters, "
-                 "RSS) sont plus précis quand une maison dispose d'un identifiant "
+                 "Workable, Recruitee, RSS) sont plus précis quand une maison dispose d'un identifiant "
                  "confirmé. Ils ne nécessitent ni connexion candidat ni scraping des pages.")
         try:
             cfg = read_sources_config()
@@ -568,17 +573,67 @@ elif page == "Sources surveillées":
             for provider, key in [("Lever", "lever"), ("Ashby", "ashby"),
                                   ("Greenhouse", "greenhouse"),
                                   ("SmartRecruiters", "smartrecruiters"),
+                                  ("Workable", "workable"),
+                                  ("Recruitee", "recruitee"),
                                   ("RSS/Atom", "rss")]:
                 for board in cfg.get(key, []):
                     rows.append({"Fournisseur": provider, "Maison": board.get("company", ""),
                                  "Configuration": board.get("site") or board.get("board") or
-                                                   board.get("company_id") or board.get("url")})
+                                                   board.get("company_id") or board.get("account") or
+                                                   board.get("url")})
             st.dataframe(pd.DataFrame(rows, columns=["Fournisseur", "Maison", "Configuration"]),
                          hide_index=True, width="stretch")
             st.caption("Les identifiants de flux doivent être vérifiés à leur source. "
                        "Les erreurs et les volumes figurent dans Statistiques après un scan.")
         except (OSError, ValueError, TypeError) as exc:
             st.warning("Configuration non disponible : " + str(exc))
+    with tab_health:
+        st.write("Ici on voit les **sites qui ont répondu**, ceux qui n'ont renvoyé "
+                 "aucune annonce et ceux dont la collecte a échoué. "
+                 "Un site en erreur n'est pas un site sans emploi.")
+        report_file = ROOT / "scan_rapport.json"
+        if not report_file.exists():
+            st.info("Aucun rapport disponible : lance le scan depuis GitHub Actions.")
+        else:
+            try:
+                import json
+                report = json.loads(report_file.read_text(encoding="utf-8"))
+                h1, h2, h3, h4 = st.columns(4)
+                h1.metric("Résultats publics", report.get("resultats_sources", "—"))
+                h2.metric("Offres retenues", report.get("annonces_retenues", "—"))
+                h3.metric("Nouvelles offres", report.get("annonces_nouvelles", 0))
+                h4.metric("Sources en erreur / reportées", report.get("sources_en_erreur", "—"))
+                st.caption(f"Dernier scan : {report.get('date_scan', 'inconnue')} · "
+                           f"État général : {report.get('statut', 'inconnu')}")
+                if report.get("statut") in ("degrade", "partiel"):
+                    st.warning("Certains connecteurs n'ont pas répondu. "
+                               "Les offres déjà enregistrées sont préservées.")
+                diagnostics = report.get("etat_sources", {})
+                if diagnostics:
+                    table_rows = []
+                    for source, detail in sorted(diagnostics.items()):
+                        table_rows.append({
+                            "Source": source,
+                            "État": detail.get("etat", "inconnu"),
+                            "Annonces accessibles": int(detail.get("brutes", 0)),
+                            "Pertinentes": int(detail.get("retenues", 0)),
+                            "Précision": detail.get("detail", ""),
+                        })
+                    table = pd.DataFrame(table_rows)
+                    choices = ["Toutes", "En erreur", "Avec résultats", "Sans résultat"]
+                    selected = st.selectbox("Afficher les sources", choices, key="health_filter")
+                    if selected == "En erreur":
+                        table = table[table["État"].isin(["erreur", "indisponible", "non_interroge"])]
+                    elif selected == "Avec résultats":
+                        table = table[table["Annonces accessibles"] > 0]
+                    elif selected == "Sans résultat":
+                        table = table[table["État"] == "vide"]
+                    st.dataframe(table, hide_index=True, width="stretch")
+                    st.caption("Annonces accessibles = résultats techniques de la source. "
+                               "Pertinentes = annonces qui passent nos critères métier, luxe et pays. "
+                               "Un résultat peut déjà exister dans le CRM.")
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                st.warning("Impossible de lire le rapport du scan : " + str(exc))
     with tab_limits:
         for name, why in MANUAL_OR_RESTRICTED:
             st.markdown(f"**{name}** : {why}")
@@ -621,7 +676,7 @@ elif page == "Statistiques":
                 st.caption(f"Dernier scan : {report.get('date_scan', 'inconnue')} — "
                            f"{report.get('annonces_nouvelles', 0)} nouvelle(s) opportunité(s)")
                 st.json({"Par canal (offres retenues)": report.get("par_source", {}),
-                         "Contrôles par source (offres brutes)": report.get("etat_sources", {}),
+                         "Diagnostic détaillé": report.get("etat_sources", {}),
                          "Signaux marché": report.get("signaux_total", "non activé")},
                         expanded=False)
             except (OSError, ValueError) as exc:

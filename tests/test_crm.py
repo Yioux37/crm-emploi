@@ -174,9 +174,7 @@ class SafetyAndScanTests(unittest.TestCase):
             legacy = root / "offres_emploi.csv"
             legacy.write_text("ma note personnelle ne doit pas changer\n", encoding="utf-8")
             original = legacy.read_bytes()
-            with patch.object(scraper, "fetch_linkedin_jobs", return_value=[job()]), \
-                 patch.object(scraper, "fetch_portails_directs", return_value=[]), \
-                 patch.object(scraper, "fetch_web_et_posts", return_value=[]), \
+            with patch.object(scraper, "fetch_portails_directs", return_value=[job()]), \
                  patch.object(scraper, "fetch_ats_complementaires", return_value=[]), \
                  patch.object(scraper, "fetch_portails_specialises", return_value=[]):
                 scan = scraper.executer_tout(str(root / "offres_detectees.csv"), str(root / "report.json"))
@@ -192,12 +190,10 @@ class SafetyAndScanTests(unittest.TestCase):
             feed = root / "offres_detectees.csv"
             feed.write_text("Titre,Entreprise\nancien,intact\n", encoding="utf-8")
             before = feed.read_bytes()
-            with patch.object(scraper, "fetch_linkedin_jobs", return_value=[]), \
-                 patch.object(scraper, "fetch_portails_directs", return_value=[]), \
-                 patch.object(scraper, "fetch_web_et_posts", return_value=[]), \
+            with patch.object(scraper, "fetch_portails_directs", return_value=[]), \
                  patch.object(scraper, "fetch_ats_complementaires", return_value=[]), \
                  patch.object(scraper, "fetch_portails_specialises", return_value=[]):
-                with self.assertRaises(RuntimeError):
-                    scraper.executer_tout(str(feed), str(root / "report.json"))
+                result = scraper.executer_tout(str(feed), str(root / "report.json"))
             self.assertEqual(feed.read_bytes(), before)
-            self.assertEqual(json.loads((root / "report.json").read_text())["statut"], "aucun_resultat")
+            self.assertEqual(result["statut"], "aucune_offre_cible")
+            self.assertEqual(result["annonces_nouvelles"], 0)

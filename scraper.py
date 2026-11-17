@@ -410,124 +410,58 @@ def fetch_portails_directs():
     }
 
     for groupe_nom, api_url, base_url in tenants_workday:
-        print(f"⏳ [Workday Direct] Scan : {groupe_nom}...")
+        print(f"⏳ [Workday public] {groupe_nom}...")
         liens_vus = set()
+        ok_requests = 0
+        errors = []
+        raw_count = 0
+        accepted = 0
         for kw in mots_cles:
             try:
-                resp = requests.post(api_url, json={"appliedFacets": {}, "limit": 50, "offset": 0, "searchText": kw}, headers=headers, timeout=12)
+                resp = requests.post(api_url, json={
+                    'appliedFacets': {}, 'limit': 20, 'offset': 0, 'searchText': kw,
+                }, headers=headers, timeout=10)
                 if resp.status_code != 200:
+                    errors.append(f'HTTP {resp.status_code}')
+                    # Ne pas multiplier les requetes apres un refus.
+                    if resp.status_code in (401, 403, 404, 429):
+                        break
                     continue
-                for job in resp.json().get("jobPostings", []):
-                    titre = job.get("title", "") or ""
-                    loc = job.get("locationsText", "") or ""
-                    path = job.get("externalPath", "") or ""
-                    bullets = " ".join(job.get("bulletFields", []) or [])
+                ok_requests += 1
+                posts = resp.json().get('jobPostings', [])
+                raw_count += len(posts)
+                for job in posts:
+                    titre = job.get('title') or ''
+                    loc = job.get('locationsText') or ''
+                    path = job.get('externalPath') or ''
+                    bullets = ' '.join(job.get('bulletFields', []) or [])
                     if not path:
                         continue
-                    lien = f"{base_url}{path}"
+                    lien = f'{base_url}{path}'
                     if lien in liens_vus:
                         continue
                     liens_vus.add(lien)
-
-                    contexte = f"{titre} {loc} {bullets} {path}"
+                    contexte = f'{titre} {loc} {bullets} {path}'
                     entreprise = detecter_maison_exacte(contexte, lien=lien, fallback=groupe_nom)
-
-                    secteur_valide = valider_et_classer_offre(titre, entreprise, contexte, est_post=False, lien=lien)
-                    if not secteur_valide:
+                    secteur = valider_et_classer_offre(titre, entreprise, contexte, lien=lien)
+                    pays = verifier_pays_strict(loc)
+                    if not (secteur and pays):
                         continue
-                    pays_valide = verifier_pays_strict(loc)
-                    if not pays_valide:
-                        continue
-
                     offres.append({
-                        "Titre": titre,
-                        "Entreprise": entreprise,
-                        "Secteur": secteur_valide,
-                        "Pays": pays_valide,
-                        "Source": "Sites Maisons de Luxe",
-                        "Lien": lien,
-                        "Niveau estimé": classer_niveau(titre),
-                        "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+                        'Titre': titre, 'Entreprise': entreprise, 'Secteur': secteur,
+                        'Pays': pays, 'Source': 'Sites Maisons de Luxe', 'Lien': lien,
+                        'Niveau estimé': classer_niveau(titre),
+                        'Date de détection': pd.Timestamp.today().strftime('%Y-%m-%d'),
                     })
-                time.sleep(0.3)
-            except Exception:
-                continue
-
-    # API publique SmartRecruiters
-    tenants_smartrecruiters = [
-        ("Breitling", "Breitling"),
-        ("Audemars Piguet", "AudemarsPiguet"),
-        ("Richard Mille", "RichardMille"),
-        ("Acrotec Group", "AcrotecGroup")
-    ]
-    for nom_maison, sr_id in tenants_smartrecruiters:
-        print(f"⏳ [SmartRecruiters Direct] Scan : {nom_maison}...")
-        try:
-            sr_url = f"https://api.smartrecruiters.com/v1/companies/{sr_id}/postings"
-            resp = requests.get(sr_url, timeout=12)
-            if resp.status_code == 200:
-                for job in resp.json().get("content", []):
-                    titre = job.get("name", "") or ""
-                    loc_obj = job.get("location", {}) or {}
-                    loc = f"{loc_obj.get('city', '')} {loc_obj.get('country', '')}"
-                    job_id = job.get("id", "")
-                    if not job_id:
-                        continue
-                    lien = f"https://jobs.smartrecruiters.com/{sr_id}/{job_id}"
-
-                    contexte = f"{titre} {loc} {nom_maison}"
-                    secteur_valide = valider_et_classer_offre(titre, nom_maison, contexte, est_post=False, lien=lien)
-                    if not secteur_valide:
-                        continue
-                    pays_valide = verifier_pays_strict(loc_obj.get("city", ""), pays_api=loc_obj.get("country", ""))
-                    if not pays_valide:
-                        continue
-
-                    offres.append({
-                        "Titre": titre,
-                        "Entreprise": nom_maison,
-                        "Secteur": secteur_valide,
-                        "Pays": pays_valide,
-                        "Source": "Sites Maisons de Luxe",
-                        "Lien": lien,
-                        "Niveau estimé": classer_niveau(titre),
-                        "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
-                    })
-        except Exception:
-            continue
-
-    # API publique Greenhouse
-    tenants_greenhouse = [
-        ("Jacquemus", "jacquemus"),
-        ("Isabel Marant", "isabelmarant")
-    ]
-    for nom_maison, gh_id in tenants_greenhouse:
-        try:
-            gh_url = f"https://boards-api.greenhouse.io/v1/boards/{gh_id}/jobs"
-            resp = requests.get(gh_url, timeout=10)
-            if resp.status_code == 200:
-                for job in resp.json().get("jobs", []):
-                    titre = job.get("title", "") or ""
-                    loc = (job.get("location", {}) or {}).get("name", "")
-                    lien = job.get("absolute_url", "")
-                    if not canonical_url(lien):
-                        continue
-                    contexte = f"{titre} {loc} {nom_maison}"
-                    secteur_valide = valider_et_classer_offre(titre, nom_maison, contexte, est_post=False, lien=lien)
-                    pays_valide = verifier_pays_strict(loc)
-                    if secteur_valide and pays_valide:
-                        offres.append({
-                            "Titre": titre,
-                            "Entreprise": nom_maison,
-                            "Secteur": secteur_valide,
-                            "Pays": pays_valide,
-                            "Source": "Sites Maisons de Luxe",
-                            "Lien": lien,
-                            "Niveau estimé": classer_niveau(titre),
-                            "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
-                        })
-        except Exception:
-            continue
+                    accepted += 1
+            except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+                errors.append(type(exc).__name__)
+        label = f'Workday / {groupe_nom}'
+        EXTRA_SOURCE_STATS[label] = {
+            'brutes': raw_count, 'retenues': accepted,
+            'etat': ('ok' if accepted else 'vide') if ok_requests else 'erreur',
+            'detail': ', '.join(dict.fromkeys(errors))[:100] if not ok_requests else '',
+        }
 
     return offres
 
@@ -671,18 +605,35 @@ EXTRA_SOURCE_STATS = {}
 def fetch_ats_complementaires():
     statistiques = {}
     raw = fetch_public_ats(stats=statistiques)
+    retained = []
+    for item in raw:
+        normalized = normaliser_source_plus(item)
+        if normalized:
+            retained.append(normalized)
+            key = item.get('_origine_diagnostic')
+            if key in statistiques:
+                statistiques[key]['retenues'] += 1
     EXTRA_SOURCE_STATS.update(statistiques)
     for source, detail in statistiques.items():
-        print(f"[ATS v3] {source}: {detail['brutes']} lignes, {detail['etat']}")
-    return [x for x in (normaliser_source_plus(row) for row in raw) if x]
+        print(f"[ATS public] {source}: {detail['brutes']} brutes, "
+              f"{detail['retenues']} retenues, {detail['etat']}")
+    return retained
 
 
 def fetch_portails_specialises():
     statistiques = {}
     raw = fetch_indexed_jobs(stats=statistiques)
+    retained = []
+    for item in raw:
+        normalized = normaliser_source_plus(item)
+        if normalized:
+            retained.append(normalized)
+            key = item.get('_origine_diagnostic')
+            if key in statistiques:
+                statistiques[key]['retenues'] += 1
     EXTRA_SOURCE_STATS.update(statistiques)
-    print(f"[Index v3] {len(raw)} candidats depuis {len(statistiques)} sites indexes")
-    return [x for x in (normaliser_source_plus(row) for row in raw) if x]
+    print(f"[Index gratuit] {len(raw)} resultats indexes, {len(retained)} offres retenues")
+    return retained
 
 
 # ==============================================================================
@@ -690,21 +641,34 @@ def fetch_portails_specialises():
 # ==============================================================================
 
 def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", signals_output=None):
-    """Scrape uniquement les annonces publiques; ne lit/jamais n'ecrit le suivi CRM."""
+    """Ne modifie jamais la base personnelle: conserve le flux en cas de panne.
+
+    V6: les sites d'emploi indexables restent surveilles en mode gratuit,
+    les annonces directes proviennent d'ATS publics configures. Les appels
+    LinkedIn non autorises et la recherche complexe historique sont desactives.
+    """
     collected = []
     counts = {}
     EXTRA_SOURCE_STATS.clear()
+    EXTRA_SOURCE_STATS['LinkedIn direct'] = {
+        'brutes': 0, 'retenues': 0, 'etat': 'manuel',
+        'detail': 'Consultation manuelle uniquement, pas de collecte automatisee',
+    }
+    EXTRA_SOURCE_STATS['Recherche web historique'] = {
+        'brutes': 0, 'retenues': 0, 'etat': 'desactive',
+        'detail': 'Requetes anciennes trop complexes et peu fiables',
+    }
     for name, provider in (
-        ("LinkedIn Offres", fetch_linkedin_jobs),
-        ("Portails ATS", fetch_portails_directs),
-        ("Web et posts", fetch_web_et_posts),
-        ("ATS complementaires", fetch_ats_complementaires),
-        ("Portails specialises", fetch_portails_specialises),
+        ('Workday publics', fetch_portails_directs),
+        ('ATS publics configures', fetch_ats_complementaires),
+        ('Index gratuit', fetch_portails_specialises),
     ):
         try:
             rows = provider()
         except Exception as exc:
-            print(f"ERREUR [{name}]: {exc}")
+            print(f'⚠️ ERREUR [{name}] : {type(exc).__name__}')
+            EXTRA_SOURCE_STATS[name] = {'brutes': 0, 'retenues': 0,
+                                        'etat': 'erreur', 'detail': type(exc).__name__}
             rows = []
         counts[name] = len(rows)
         collected.extend(rows)
@@ -712,39 +676,57 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
     current_day = date.today().isoformat()
     output_path = os.path.abspath(output)
     report_path = os.path.abspath(report)
-    result = {"date_scan": current_day, "par_source": counts,
-              "annonces_brutes": len(collected), "annonces_nouvelles": 0,
-              "total_historique": 0, "statut": "ok" if collected else "aucun_resultat"}
-    if not collected:
-        # Ne surtout pas effacer le flux conserve en cas de panne des sources externes.
-        with open(report_path, "w", encoding="utf-8") as file:
-            json.dump(result, file, ensure_ascii=False, indent=2)
-        raise RuntimeError("Aucune source n'a fourni d'offre; flux existant conserve. Verifier les logs.")
-
     previous = []
     if os.path.isfile(output_path):
-        previous = pd.read_csv(output_path, dtype=str, keep_default_na=False).to_dict("records")
+        previous = pd.read_csv(output_path, dtype=str, keep_default_na=False).to_dict('records')
     merged_old = merge_feed(previous, [], current_day)
-    merged = merge_feed(merged_old, collected, current_day)
-    result["annonces_nouvelles"] = max(0, len(merged) - len(merged_old))
-    result["total_historique"] = len(merged)
-    result["etat_sources"] = EXTRA_SOURCE_STATS.copy()
-    # L'ecriture temporaire+renommage evite les fichiers tronques si le scan est interrompu.
-    temp = output_path + ".tmp"
-    pd.DataFrame(merged, columns=SCRAPER_COLUMNS).to_csv(temp, index=False, encoding="utf-8")
-    os.replace(temp, output_path)
+    errors = sum(1 for d in EXTRA_SOURCE_STATS.values()
+                 if d.get('etat') in ('erreur', 'indisponible', 'non_interroge'))
+    successes = sum(1 for d in EXTRA_SOURCE_STATS.values()
+                    if d.get('etat') in ('ok', 'vide'))
+    if collected:
+        merged = merge_feed(merged_old, collected, current_day)
+        status = 'partiel' if errors else 'ok'
+    else:
+        merged = merged_old
+        status = 'degrade' if errors else 'aucune_offre_cible'
+    result = {
+        'version': 6, 'date_scan': current_day, 'statut': status,
+        'par_source': counts,
+        'annonces_brutes': len(collected),  # historiques: signifie annonces retenues AVANT fusion
+        'resultats_sources': sum(int(x.get('brutes', 0)) for x in EXTRA_SOURCE_STATS.values()),
+        'annonces_retenues': len(collected),
+        'annonces_nouvelles': max(0, len(merged) - len(merged_old)),
+        'total_historique': len(merged),
+        'sources_en_erreur': errors, 'sources_repondant': successes,
+        'etat_sources': EXTRA_SOURCE_STATS.copy(),
+        'avertissement': ('Des sources ont echoue. Les anciennes offres restent conservees.'
+                          if errors else ''),
+    }
+    if collected:
+        temp = output_path + '.tmp'
+        pd.DataFrame(merged, columns=SCRAPER_COLUMNS).to_csv(temp, index=False, encoding='utf-8')
+        os.replace(temp, output_path)
+    else:
+        # Important : aucune re-ecriture du flux public si 0 offre retenue.
+        print('⚠️ Aucune nouvelle offre exploitable. Le flux precedent est conserve.')
     if signals_output is not None:
         try:
             from market_signals import update_signals
-            signal_report = update_signals(signals_output, MAISONS_ET_MANUFACTURES)
-            result.update(signal_report)
+            result.update(update_signals(signals_output, MAISONS_ET_MANUFACTURES))
         except Exception as exc:
-            print(f"⚠️ [Signaux marche] Scan indisponible: {type(exc).__name__}: {exc}")
-            result["signaux_erreur"] = type(exc).__name__
-    with open(report_path, "w", encoding="utf-8") as file:
+            print(f'⚠️ [Signaux marche] {type(exc).__name__}')
+            result['signaux_erreur'] = type(exc).__name__
+    # Ecriture atomique du diagnostic, meme lorsque la collecte est degradee.
+    os.makedirs(os.path.dirname(report_path) or '.', exist_ok=True)
+    report_temp = report_path + '.tmp'
+    with open(report_temp, 'w', encoding='utf-8') as file:
         json.dump(result, file, ensure_ascii=False, indent=2)
-    print(f"Fin du scan : {result['annonces_nouvelles']} nouvelles offres, "
-          f"{len(merged)} offres conservees au total. CRM personnel intact.")
+    os.replace(report_temp, report_path)
+    if errors:
+        print(f'::warning::Radar partiellement indisponible : {errors} sources en erreur.')
+    print(f"Fin du scan V6 : {result['annonces_nouvelles']} nouvelles offres, "
+          f"{len(merged)} conservees, {errors} sources en erreur. Donnees CRM intactes.")
     return result
 
 

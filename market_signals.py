@@ -103,11 +103,13 @@ def scan_public_signals(companies: list[str], day: date | None = None,
         '(investimento OR acquisizione OR "nuovo stabilimento" OR "production capacity") luxury fashion',
     ][day.toordinal() % 3]
     found, urls = [], set()
+    consecutive_errors = 0
     try:
         with ddgs_factory() as ddgs:
             for source, domain in selected:
                 try:
-                    results = ddgs.text(f'site:{domain} {terms}', max_results=10)
+                    results = list(ddgs.text(f'site:{domain} {terms}', max_results=10) or [])
+                    consecutive_errors = 0
                     for hit in results:
                         title, excerpt = str(hit.get('title') or '').strip(), str(hit.get('body') or '')
                         url = str(hit.get('href') or '')
@@ -128,7 +130,11 @@ def scan_public_signals(companies: list[str], day: date | None = None,
                                       'Pays': country_from_location(title + ' ' + excerpt) or 'Non précisé',
                                       'Source': source, 'Lien': url})
                 except Exception as exc:
-                    print(f'⚠️ [Actualites / {source}] {type(exc).__name__}: {str(exc)[:150]}')
+                    consecutive_errors += 1
+                    print(f'⚠️ [Actualites / {source}] {type(exc).__name__}')
+                    if consecutive_errors >= 3:
+                        print('⚠️ [Actualites] Moteur indisponible; arret anticipe des recherches.')
+                        break
                 if sleep_seconds:
                     time.sleep(sleep_seconds)
     except Exception as exc:

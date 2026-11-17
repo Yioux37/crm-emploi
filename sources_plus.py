@@ -1,4 +1,4 @@
-"""Connecteurs complementaires de veille emploi (v3).
+"""Connecteurs gratuits de veille emploi (v6).
 
 Sources non authentifiees et PUBLIQUES uniquement : Lever, Ashby, flux RSS/Atom
 publies, ainsi que decouverte de liens indexes par un moteur de recherche.
@@ -24,7 +24,7 @@ from search_gateway import default_search_client
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT / 'sources_plus.json'
-HEADERS = {'User-Agent': 'CRM-Carriere/4.0 (lecture annonces publiques)',
+HEADERS = {'User-Agent': 'CRM-Carriere/6.0 (lecture annonces publiques)',
            'Accept': 'application/json, application/xml, text/xml;q=0.9, */*;q=0.5'}
 IDENTIFIER = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,90}$')
 
@@ -189,6 +189,50 @@ def fetch_smartrecruiters(session, board: dict) -> list[dict]:
     return rows
 
 
+def fetch_workable(session, board: dict) -> list[dict]:
+    """Flux public d'un compte Workable connu, sans cle ni connexion."""
+    company = str(board['company']).strip()
+    slug = _safe_slug(board['account'])
+    data = _get_json(session, f'https://apply.workable.com/api/v1/widget/accounts/{slug}',
+                     params={'details': 'true'})
+    results = []
+    for post in data.get('jobs', []) if isinstance(data, dict) else []:
+        loc = post.get('location') or {}
+        if isinstance(loc, str):
+            location, country = loc, ''
+        else:
+            location = ', '.join(str(loc.get(k)) for k in ('city', 'region', 'country') if loc.get(k))
+            country = loc.get('country') or ''
+        link = post.get('url') or post.get('application_url') or ''
+        code = post.get('shortcode') or ''
+        if not link and IDENTIFIER.fullmatch(str(code)):
+            link = f'https://apply.workable.com/{slug}/j/{code}/'
+        results.append(_raw(post.get('title'), company, location, link,
+                            'Sites Maisons de Luxe', country_field=country,
+                            context=str(post.get('department') or '')))
+    return results
+
+
+def fetch_recruitee(session, board: dict) -> list[dict]:
+    """Flux public Recruitee d'une entreprise explicitement configuree."""
+    company = str(board['company']).strip()
+    slug = _safe_slug(board['account'])
+    data = _get_json(session, f'https://{slug}.recruitee.com/api/offers/')
+    results = []
+    for post in data.get('offers', []) if isinstance(data, dict) else []:
+        loc = post.get('location') or ''
+        country = post.get('country_code') or ''
+        if isinstance(loc, dict):
+            location = ', '.join(str(loc.get(k)) for k in ('city', 'country') if loc.get(k))
+        else:
+            location = str(loc)
+        results.append(_raw(post.get('title'), company, location,
+                            post.get('careers_url') or post.get('url') or '',
+                            'Sites Maisons de Luxe', country_field=country,
+                            context=str(post.get('department') or '')))
+    return results
+
+
 def _xml_txt(element, name: str) -> str:
     for child in element:
         if child.tag.rsplit('}', 1)[-1].lower() == name.lower():
@@ -235,6 +279,8 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
                  ('Ashby', config.get('ashby', []), fetch_ashby),
                  ('Greenhouse', config.get('greenhouse', []), fetch_greenhouse),
                  ('SmartRecruiters', config.get('smartrecruiters', []), fetch_smartrecruiters),
+                 ('Workable', config.get('workable', []), fetch_workable),
+                 ('Recruitee', config.get('recruitee', []), fetch_recruitee),
                  ('RSS/Atom', config.get('rss', []), fetch_rss)]
     for provider, boards, fn in providers:
         for board in boards:
@@ -242,13 +288,17 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
             label = f'{provider} / {name}'
             try:
                 batch = [x for x in fn(session, board) if x['url'] and x['title']]
+                for row in batch:
+                    row['_origine_diagnostic'] = label
                 jobs.extend(batch)
                 if stats is not None:
-                    stats[label] = {'brutes': len(batch), 'etat': 'ok'}
+                    stats[label] = {'brutes': len(batch), 'retenues': 0,
+                                    'etat': 'ok' if batch else 'vide'}
             except (requests.RequestException, ValueError, KeyError, ET.ParseError, TypeError) as exc:
                 print(f'⚠️ [{label}] {exc}')
                 if stats is not None:
-                    stats[label] = {'brutes': 0, 'etat': 'erreur'}
+                    stats[label] = {'brutes': 0, 'retenues': 0,
+                                    'etat': 'erreur', 'detail': type(exc).__name__}
     return jobs
 
 
@@ -271,48 +321,86 @@ def select_search_sites(day: date | None = None, budget: int | None = None) -> l
     return always + chosen
 
 
+# V6 : des requetes volontairement simples, une par site, avec coupure rapide
+# lorsque le moteur public est indisponible (au lieu de 30 erreurs identiques).
+LIGHT_TERMS = {
+    'fr': ['"directeur supply chain"', '"directeur industriel"', '"directeur production"'],
+    'en': ['"operations director"', '"head of supply chain"', '"manufacturing director"'],
+    'it': ['"direttore produzione"', '"direttore operations"', '"direttore supply chain"'],
+}
+
+
 def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
-                       ddgs_factory=None, sleep_seconds: float = 1.0,
-                       stats: dict | None = None) -> list[dict]:
-    """Decouverte de liens via l'index d'un moteur, jamais crawl des portails."""
+                       ddgs_factory=None, sleep_seconds: float = 0.7,
+                       stats: dict | None = None, max_consecutive_errors: int = 3) -> list[dict]:
+    """Index gratuit: statuts 'vide' et 'erreur' distincts, arret si moteur bloque.
+
+    Les sites ne sont pas crawles directement. La limite budget represente le nombre
+    maximal de requetes, pas le nombre de sites garantis comme accessibles.
+    """
     day = day or date.today()
     sites = select_search_sites(day, budget)
     if ddgs_factory is None:
         ddgs_factory = default_search_client()
-    if not ddgs_factory or not sites:
+    if not ddgs_factory:
         if stats is not None:
-            stats['Index specialise'] = {'brutes': 0, 'etat': 'indisponible'}
+            stats['Moteur web'] = {'brutes': 0, 'retenues': 0, 'etat': 'indisponible',
+                                  'detail': 'Moteur DDGS non installe'}
         return []
-    rows, seen = [], set()
+    if not sites:
+        return []
+    rows, seen, consecutive_errors = [], set(), 0
     try:
-        with ddgs_factory() as ddgs:
-            for name, domain, source, language, _ in sites:
-                terms = SEARCH_TERMS[language][(day.toordinal() // 7 + sum(map(ord, domain))) % 3]
-                query = f'site:{domain} {terms}'
+        with ddgs_factory() as engine:
+            for index, (name, domain, source, language, _) in enumerate(sites):
+                label = f'Index / {name}'
+                terms = LIGHT_TERMS[language]
+                term = terms[(day.toordinal() // 7 + sum(map(ord, domain))) % len(terms)]
+                query = f'site:{domain} {term}'
                 try:
-                    for r in ddgs.text(query, max_results=12):
-                        url = _safe_url(r.get('href') or r.get('url'))
+                    hits = list(engine.text(query, max_results=12) or [])
+                    consecutive_errors = 0
+                    brutes = 0
+                    for hit in hits:
+                        url = _safe_url(hit.get('href') or hit.get('url'))
                         if not url:
                             continue
-                        hostname = (urlsplit(url).hostname or '').lower()
-                        if not (hostname == domain or hostname.endswith('.' + domain)):
+                        host = (urlsplit(url).hostname or '').lower()
+                        if not (host == domain or host.endswith('.' + domain)):
                             continue
+                        brutes += 1
                         if url in seen:
                             continue
                         seen.add(url)
-                        rows.append(_raw(r.get('title'), '', '', url, source,
-                                         context=str(r.get('body') or '')[:750]))
+                        raw = _raw(hit.get('title'), '', '', url, source,
+                                   context=str(hit.get('body') or '')[:750])
+                        raw['_origine_diagnostic'] = label
+                        rows.append(raw)
                     if stats is not None:
-                        stats[f'Index / {name}'] = {'brutes': len([r for r in rows if
-                            (urlsplit(r['url']).hostname or '').endswith(domain)]), 'etat': 'ok'}
+                        stats[label] = {'brutes': brutes, 'retenues': 0,
+                                        'etat': 'ok' if brutes else 'vide'}
                 except Exception as exc:
-                    print(f'⚠️ [Index / {name}] {type(exc).__name__}: {str(exc)[:120]}')
+                    consecutive_errors += 1
+                    kind = type(exc).__name__
+                    print(f'⚠️ [{label}] Erreur du moteur de recherche : {kind}')
                     if stats is not None:
-                        stats[f'Index / {name}'] = {'brutes': 0, 'etat': 'erreur'}
+                        stats[label] = {'brutes': 0, 'retenues': 0,
+                                        'etat': 'erreur', 'detail': kind}
+                    if consecutive_errors >= max_consecutive_errors:
+                        remaining = sites[index + 1:]
+                        if stats is not None:
+                            for remaining_name, _, _, _, _ in remaining:
+                                stats[f'Index / {remaining_name}'] = {
+                                    'brutes': 0, 'retenues': 0, 'etat': 'non_interroge',
+                                    'detail': 'Moteur indisponible apres erreurs repetees'}
+                        print(f'⚠️ Moteur de recherche indisponible : {len(remaining)} sites reportes. '
+                              'Les flux ATS continuent normalement.')
+                        break
                 if sleep_seconds:
                     time.sleep(sleep_seconds)
     except Exception as exc:
-        print(f'⚠️ [Index specialise] {type(exc).__name__}: {str(exc)[:120]}')
+        print(f'⚠️ [Index] Moteur inaccessible : {type(exc).__name__}')
         if stats is not None:
-            stats['Index specialise'] = {'brutes': len(rows), 'etat': 'erreur'}
+            stats['Moteur web'] = {'brutes': 0, 'retenues': 0,
+                                  'etat': 'indisponible', 'detail': type(exc).__name__}
     return rows

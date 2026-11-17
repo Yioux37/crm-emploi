@@ -22,4 +22,4 @@
 
 **Dans l'application** : ouvrir `Sources surveillees` pour consulter le catalogue complet et `Opportunites` pour les seules annonces ayant passe les filtres. Les memes offres de plusieurs sites sont rapprochees.
 
-**Limites a connaitre** : le scan ne se connecte pas aux comptes Indeed ou LinkedIn et ne contourne aucun blocage. Google for Jobs est un resultat de recherche, pas un site a scraper. Beaucoup de cabinets publient peu de missions de direction. Verifier la date et la disponibilite des offres avant de postuler. Les 20 requetes d'index quotidiennes n'incluent pas la veille ATS et presse.
+**Limites a connaitre** : le scan ne se connecte pas aux comptes Indeed ou LinkedIn et ne contourne aucun blocage. Google for Jobs est un resultat de recherche, pas un site a scraper. Beaucoup de cabinets publient peu de missions de direction. Verifier la date et la disponibilite des offres avant de postuler. La V6 tente jusqu'a 30 requetes d'index quotidiennes (arret anticipé si le moteur est indisponible), en plus des flux ATS et de la presse.
