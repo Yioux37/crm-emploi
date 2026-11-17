@@ -11,6 +11,8 @@ import json
 from matching import country_from_location, canonical_url
 from merge_feed import merge_feed
 from storage import SCRAPER_COLUMNS
+from sources_plus import fetch_public_ats, fetch_indexed_jobs
+from search_gateway import default_search_client
 
 try:
     from dotenv import load_dotenv
@@ -35,7 +37,7 @@ except ImportError:
 
 MAISONS_ET_MANUFACTURES = [
     # Groupes & Maisons Couture, Textile, Maroquinerie
-    "hermès", "hermes", "lvmh", "louis vuitton", "christian dior", "dior",
+    "hermès", "hermes", "karl lagerfeld", "lvmh", "louis vuitton", "christian dior", "dior",
     "chanel", "kering", "gucci", "saint laurent", "yves saint laurent", "bottega veneta",
     "balenciaga", "celine", "loewe", "givenchy", "guerlain", "fendi", "loro piana",
     "berluti", "moynat", "goyard", "delvaux", "longchamp", "prada", "miu miu",
@@ -63,6 +65,7 @@ MAISONS_ET_MANUFACTURES = [
 
 MOTS_TITRE_DIRECTION = [
     "directeur", "directrice", "director", "head of", "vp ", "vice president",
+    "responsabile", "direttore", "managing director",
     "vice-president", "coo", "chief operating", "direttore"
 ]
 
@@ -71,7 +74,9 @@ MOTS_METIER_OPERATIONS = [
     "atelier", "industriel", "industrial", "production", "produzione", "s&op",
     "excellence opérationnelle", "operational excellence",
     "transformation industrielle", "industrial transformation", "trasformazione industriale",
-    "logistique", "logistics", "sourcing", "achats", "procurement", "planning"
+    "logistique", "logistics", "sourcing", "achats", "procurement", "planning",
+    "plant", "usine", "factory", "industrializzazione", "lean manufacturing",
+    "continuous improvement", "amélioration continue", "miglioramento continuo"
 ]
 
 MOTS_INTENTION_RECRUTEMENT = [
@@ -140,7 +145,7 @@ def classer_niveau(titre):
     ]):
         return "Direction fonctionnelle"
     if any(x in t for x in [
-        "senior manager", "manager", "responsable",
+        "senior manager", "manager", "responsable", "responsabile",
         "directeur", "director", "head of", "direttore"
     ]):
         return "Management senior"
@@ -237,7 +242,7 @@ def valider_et_classer_offre(titre, entreprise, contexte="", est_post=False, lie
         "leather goods", "prêt-à-porter", "pret-a-porter", "soie", "cachemire",
         "hermès", "hermes", "chanel", "dior", "louis vuitton", "gucci", "prada",
         "moncler", "saint laurent", "bottega veneta", "balenciaga", "celine",
-        "loewe", "loro piana", "brunello cucinelli", "zegna", "armani", "valentino",
+        "loewe", "loro piana", "brunello cucinelli", "zegna", "armani", "valentino", "karl lagerfeld",
         "fendi", "longchamp", "gruppo florence", "minerva hub", "maroquinerie thomas",
         "delvaux", "goyard", "moynat", "berluti", "jacquemus", "isabel marant", "chloé", "alaïa"
     ]):
@@ -258,7 +263,7 @@ def valider_et_classer_offre(titre, entreprise, contexte="", est_post=False, lie
 
 def deduire_source(lien, source_actuelle=""):
     s = str(source_actuelle)
-    if s in ["LinkedIn (Offres)", "LinkedIn (Posts)", "Sites Maisons de Luxe", "Cabinets de Recrutement", "Approche directe / Réseau"]:
+    if s in ["LinkedIn (Offres)", "LinkedIn (Posts)", "Sites Maisons de Luxe", "Cabinets de Recrutement", "Portails spécialisés", "Portails cadres", "Approche directe / Réseau"]:
         return s
     l = str(lien).lower()
     if "linkedin.com/posts" in l or "linkedin.com/feed/update" in l:
@@ -532,7 +537,8 @@ def fetch_portails_directs():
 # ==============================================================================
 
 def fetch_web_et_posts():
-    if not DDGS_DISPONIBLE:
+    search_client = default_search_client()
+    if search_client is None:
         return []
 
     offres = []
@@ -565,7 +571,7 @@ def fetch_web_et_posts():
         requetes.append(("Sites Maisons de Luxe", q_universelle))
 
     try:
-        with DDGS() as ddgs:
+        with search_client() as ddgs:
             for source_nom, query in requetes:
                 print(f"⏳ [{source_nom}] Scan : {query[:65]}...")
                 try:
@@ -624,17 +630,76 @@ def fetch_web_et_posts():
 
 
 # ==============================================================================
+# 5B. NOUVEAUX CANAUX : LEVER, ASHBY, RSS ET INDEX SPECIALISES
+# ==============================================================================
+
+
+def normaliser_source_plus(raw):
+    """N'importe jamais de donnee personnelle : uniquement poste, pays et lien public."""
+    titre = str(raw.get("title") or "").strip()
+    lien = str(raw.get("url") or "").strip()
+    if not titre or not canonical_url(lien):
+        return None
+    source = str(raw.get("source") or "Portails spécialisés")
+    localisation = str(raw.get("location") or "").strip()
+    contexte = str(raw.get("context") or "")
+    employeur = str(raw.get("company") or "").strip()
+    if not employeur:
+        # Ne jamais attribuer le nom du portail a l'entreprise.
+        employeur = detecter_maison_exacte(f"{titre} {contexte}", lien="",
+                                           fallback="Employeur non précisé")
+    if localisation:
+        pays = verifier_pays_strict(localisation, pays_api=raw.get("country_field"))
+    else:
+        # Moteurs indexes: pays UNIQUEMENT si le titre ou l'extrait le mentionnent.
+        pays = verifier_pays_strict(f"{titre} {contexte}", pays_api=raw.get("country_field"))
+    if not pays:
+        return None
+    secteur = valider_et_classer_offre(titre, employeur, f"{contexte} {localisation}", lien=lien)
+    if not secteur:
+        return None
+    return {
+        "Titre": titre, "Entreprise": employeur, "Secteur": secteur, "Pays": pays,
+        "Source": source, "Lien": lien, "Niveau estimé": classer_niveau(titre),
+        "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
+    }
+
+
+EXTRA_SOURCE_STATS = {}
+
+
+def fetch_ats_complementaires():
+    statistiques = {}
+    raw = fetch_public_ats(stats=statistiques)
+    EXTRA_SOURCE_STATS.update(statistiques)
+    for source, detail in statistiques.items():
+        print(f"[ATS v3] {source}: {detail['brutes']} lignes, {detail['etat']}")
+    return [x for x in (normaliser_source_plus(row) for row in raw) if x]
+
+
+def fetch_portails_specialises():
+    statistiques = {}
+    raw = fetch_indexed_jobs(stats=statistiques)
+    EXTRA_SOURCE_STATS.update(statistiques)
+    print(f"[Index v3] {len(raw)} candidats depuis {len(statistiques)} sites indexes")
+    return [x for x in (normaliser_source_plus(row) for row in raw) if x]
+
+
+# ==============================================================================
 # 6. SAUVEGARDE, PURGE & PRÉSERVATION DES DONNÉES CRM
 # ==============================================================================
 
-def executer_tout(output="offres_detectees.csv", report="scan_rapport.json"):
+def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", signals_output=None):
     """Scrape uniquement les annonces publiques; ne lit/jamais n'ecrit le suivi CRM."""
     collected = []
     counts = {}
+    EXTRA_SOURCE_STATS.clear()
     for name, provider in (
         ("LinkedIn Offres", fetch_linkedin_jobs),
         ("Portails ATS", fetch_portails_directs),
         ("Web et posts", fetch_web_et_posts),
+        ("ATS complementaires", fetch_ats_complementaires),
+        ("Portails specialises", fetch_portails_specialises),
     ):
         try:
             rows = provider()
@@ -663,10 +728,19 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json"):
     merged = merge_feed(merged_old, collected, current_day)
     result["annonces_nouvelles"] = max(0, len(merged) - len(merged_old))
     result["total_historique"] = len(merged)
+    result["etat_sources"] = EXTRA_SOURCE_STATS.copy()
     # L'ecriture temporaire+renommage evite les fichiers tronques si le scan est interrompu.
     temp = output_path + ".tmp"
     pd.DataFrame(merged, columns=SCRAPER_COLUMNS).to_csv(temp, index=False, encoding="utf-8")
     os.replace(temp, output_path)
+    if signals_output is not None:
+        try:
+            from market_signals import update_signals
+            signal_report = update_signals(signals_output, MAISONS_ET_MANUFACTURES)
+            result.update(signal_report)
+        except Exception as exc:
+            print(f"⚠️ [Signaux marche] Scan indisponible: {type(exc).__name__}: {exc}")
+            result["signaux_erreur"] = type(exc).__name__
     with open(report_path, "w", encoding="utf-8") as file:
         json.dump(result, file, ensure_ascii=False, indent=2)
     print(f"Fin du scan : {result['annonces_nouvelles']} nouvelles offres, "
@@ -678,5 +752,6 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description="Veille publique - sans ecriture du CRM")
     cli.add_argument("--output", default="offres_detectees.csv")
     cli.add_argument("--report", default="scan_rapport.json")
+    cli.add_argument("--signals-output", default="signaux_marche.csv")
     args = cli.parse_args()
-    executer_tout(args.output, args.report)
+    executer_tout(args.output, args.report, args.signals_output)

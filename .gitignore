@@ -2,13 +2,12 @@
 __pycache__/
 .pytest_cache/
 *.pyc
-.env
+.env*
 .streamlit/secrets.toml
 .DS_Store
 # Base locale, backups et CSV historique personnel (ne jamais committer)
 data/
-*.sqlite3
-*.sqlite3-shm
-*.sqlite3-wal
+*.sqlite*
+*.db
 offres_emploi.csv
 backups/

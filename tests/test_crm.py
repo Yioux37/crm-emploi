@@ -176,7 +176,9 @@ class SafetyAndScanTests(unittest.TestCase):
             original = legacy.read_bytes()
             with patch.object(scraper, "fetch_linkedin_jobs", return_value=[job()]), \
                  patch.object(scraper, "fetch_portails_directs", return_value=[]), \
-                 patch.object(scraper, "fetch_web_et_posts", return_value=[]):
+                 patch.object(scraper, "fetch_web_et_posts", return_value=[]), \
+                 patch.object(scraper, "fetch_ats_complementaires", return_value=[]), \
+                 patch.object(scraper, "fetch_portails_specialises", return_value=[]):
                 scan = scraper.executer_tout(str(root / "offres_detectees.csv"), str(root / "report.json"))
             self.assertEqual(legacy.read_bytes(), original)
             self.assertEqual(scan["annonces_nouvelles"], 1)
@@ -192,7 +194,9 @@ class SafetyAndScanTests(unittest.TestCase):
             before = feed.read_bytes()
             with patch.object(scraper, "fetch_linkedin_jobs", return_value=[]), \
                  patch.object(scraper, "fetch_portails_directs", return_value=[]), \
-                 patch.object(scraper, "fetch_web_et_posts", return_value=[]):
+                 patch.object(scraper, "fetch_web_et_posts", return_value=[]), \
+                 patch.object(scraper, "fetch_ats_complementaires", return_value=[]), \
+                 patch.object(scraper, "fetch_portails_specialises", return_value=[]):
                 with self.assertRaises(RuntimeError):
                     scraper.executer_tout(str(feed), str(root / "report.json"))
             self.assertEqual(feed.read_bytes(), before)

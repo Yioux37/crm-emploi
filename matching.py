@@ -159,6 +159,7 @@ def same_opportunity(a: dict, b: dict) -> bool:
 
 
 SOURCE_RANK = {"Sites Maisons de Luxe": 5, "Cabinets de Recrutement": 4,
+               "Portails spécialisés": 3, "Portails cadres": 3,
                "LinkedIn (Offres)": 3, "LinkedIn (Posts)": 2,
                "Approche directe / Reseau": 1, "Approche directe / Réseau": 1}
 

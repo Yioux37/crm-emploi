@@ -20,7 +20,7 @@ from scoring import DEFAULT_PREFERENCES, calculate_score
 from storage import CRMStore, ConcurrentEditError, PRIORITIES, STATUSES
 
 ROOT = Path(__file__).resolve().parent
-PAGES = ["Accueil", "Opportunités", "Relances", "Statistiques", "Préférences"]
+PAGES = ["Accueil", "Opportunités", "Signaux marché", "Relances", "Statistiques", "Préférences"]
 
 st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="⌚", layout="wide")
 st.markdown("""
@@ -113,7 +113,7 @@ if "nav_target" in st.session_state:
     st.session_state["current_page"] = st.session_state.pop("nav_target")
 st.sidebar.radio("Navigation", PAGES, key="current_page", label_visibility="collapsed")
 st.sidebar.divider()
-if st.sidebar.button("🔎 Rechercher de nouvelles offres", use_container_width=True):
+if st.sidebar.button("🔎 Rechercher de nouvelles offres", width="stretch"):
     with st.spinner("Interrogation des portails et moteurs de recherche…"):
         try:
             result = subprocess.run(
@@ -132,7 +132,7 @@ if st.sidebar.button("🔎 Rechercher de nouvelles offres", use_container_width=
         except subprocess.TimeoutExpired:
             st.sidebar.error("Scan trop long : l'opération a été interrompue, sans suppression d'offre.")
 
-if st.sidebar.button("↻ Actualiser le flux", use_container_width=True):
+if st.sidebar.button("↻ Actualiser le flux", width="stretch"):
     try:
         count = store.import_csv(ROOT / "offres_detectees.csv")
         st.session_state["notice"] = f"Flux rechargé : {count} nouvelle(s) offre(s)."
@@ -195,7 +195,7 @@ def short_table(rows: pd.DataFrame, *, show_status: bool = True):
         "status": "Statut", "priority": "Priorité", "next_action": "Prochaine action", "link": "Lien"
     })
     st.dataframe(
-        ui, hide_index=True, use_container_width=True,
+        ui, hide_index=True, width="stretch",
         column_config={
             "Score": st.column_config.ProgressColumn("Score /100", min_value=0, max_value=100, format="%d"),
             "Lien": st.column_config.LinkColumn("Annonce", display_text="Ouvrir"),
@@ -211,7 +211,7 @@ def inline_offer_buttons(offers_subset: pd.DataFrame, prefix: str, limit: int = 
                 st.markdown(f"**{r['title']}**")
                 st.caption(f"{r['company']} · {r['country']} · {r['status']}")
             b.metric("Score", f"{r['score']}/100", label_visibility="visible")
-            if c.button("Ouvrir la fiche", key=f"{prefix}_{r['id']}", use_container_width=True):
+            if c.button("Ouvrir la fiche", key=f"{prefix}_{r['id']}", width="stretch"):
                 go_to_offer(r["id"])
 
 
@@ -270,7 +270,7 @@ elif page == "Opportunités":
         })
         edited = st.data_editor(
             editor_data, key="main_table_editor", hide_index=True,
-            use_container_width=True, height=min(700, max(245, 46 * (len(editor_data) + 1))),
+            width="stretch", height=min(700, max(245, 46 * (len(editor_data) + 1))),
             column_config={
                 "Statut": st.column_config.SelectboxColumn("Statut", options=STATUSES, required=True),
                 "Priorité": st.column_config.SelectboxColumn("Priorité", options=PRIORITIES, required=True),
@@ -399,6 +399,42 @@ elif page == "Opportunités":
                     except ValueError:
                         st.error("Date incorrecte, utilise le format AAAA-MM-JJ.")
 
+elif page == "Signaux marché":
+    st.subheader("📡 Radar d'entreprises : signaux de recrutement potentiels")
+    st.write(
+        "Les investissements, ouvertures de manufactures, acquisitions et nominations peuvent "
+        "justifier une prise de contact ciblée. **Ces articles ne sont pas des offres d'emploi** "
+        "et ne prouvent pas qu'un poste est ouvert."
+    )
+    signals_file = ROOT / "signaux_marche.csv"
+    if signals_file.exists():
+        try:
+            signals = pd.read_csv(signals_file, dtype=str, keep_default_na=False)
+            expected = ["Date de détection", "Actualité", "Entreprise", "Catégorie",
+                        "Pays", "Source", "Lien"]
+            if not set(expected).issubset(signals.columns):
+                st.warning("Le fichier de signaux n'a pas les colonnes attendues.")
+            elif signals.empty:
+                st.info("Aucun signal enregistré. Le scan GitHub suivant alimentera cet onglet.")
+            else:
+                signals = signals.sort_values("Date de détection", ascending=False)
+                cols = st.columns(3)
+                cols[0].metric("Signaux visibles", len(signals))
+                cols[1].metric("Maisons repérées", signals["Entreprise"].nunique())
+                cols[2].metric("Pays identifiés", int(signals["Pays"].ne("Non précisé").sum()))
+                st.dataframe(
+                    signals[expected], hide_index=True, width="stretch",
+                    column_config={"Lien": st.column_config.LinkColumn("Lire l'article", display_text="Ouvrir")},
+                )
+                st.caption("Date = découverte par le radar, pas date de publication de l'article. "
+                           "Vérifier l'information et la date dans la source avant de contacter une entreprise.")
+        except (OSError, ValueError, pd.errors.ParserError) as exc:
+            st.warning(f"Impossible de lire les signaux : {exc}")
+    else:
+        st.info("La première collecte de presse créera `signaux_marche.csv` dans le dépôt GitHub.")
+    st.markdown("**Actions conseillées** : repérer la maison, identifier le besoin métier possible, "
+                "puis préparer une approche personnalisée (sans collecte automatisée de contacts privés).")
+
 elif page == "Relances":
     st.subheader("📅 Relances et prochaines actions")
     due = df[(df["next_action"] != "") & (df["next_action"] <= today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
@@ -439,6 +475,21 @@ elif page == "Statistiques":
             st.bar_chart(by_month)
         st.caption("Les totaux par statut représentent l'état actuel des dossiers. "
                    "Un taux de réponse fiable nécessiterait de tracer chaque candidature envoyée et ses réponses.")
+
+    report_file = ROOT / "scan_rapport.json"
+    if report_file.exists():
+        with st.expander("🔎 Diagnostic du dernier scan et des sources"):
+            try:
+                import json
+                report = json.loads(report_file.read_text(encoding="utf-8"))
+                st.caption(f"Dernier scan : {report.get('date_scan', 'inconnue')} — "
+                           f"{report.get('annonces_nouvelles', 0)} nouvelle(s) opportunité(s)")
+                st.json({"Par canal (offres retenues)": report.get("par_source", {}),
+                         "Contrôles par source (offres brutes)": report.get("etat_sources", {}),
+                         "Signaux marché": report.get("signaux_total", "non activé")},
+                        expanded=False)
+            except (OSError, ValueError) as exc:
+                st.caption(f"Rapport non disponible : {exc}")
 
 elif page == "Préférences":
     st.subheader("⚙️ Profil de pertinence et sécurité")

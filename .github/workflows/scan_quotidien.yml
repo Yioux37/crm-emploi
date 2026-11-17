@@ -15,6 +15,10 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    env:
+      BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+      INDEX_MAX_QUERIES: "12"
+      NEWS_MAX_QUERIES: "4"
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4
@@ -25,12 +29,12 @@ jobs:
       - name: Installer les dependances
         run: pip install -r requirements.txt
       - name: Mettre a jour uniquement les annonces publiques
-        run: python scraper.py --output offres_detectees.csv --report scan_rapport.json
+        run: python scraper.py --output offres_detectees.csv --report scan_rapport.json --signals-output signaux_marche.csv
       - name: Committer le flux sans les donnees CRM personnelles
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add offres_detectees.csv scan_rapport.json
+          git add offres_detectees.csv signaux_marche.csv scan_rapport.json
           if ! git diff --cached --quiet; then
             git commit -m "Veille quotidienne: annonces publiques"
             git pull --rebase origin "${GITHUB_REF_NAME}"

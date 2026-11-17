@@ -1,0 +1,10 @@
+{
+  "description": "Sources publiques complementaires. N'ajouter que des identifiants de tableaux publiquement visibles et des flux RSS publics.",
+  "lever": [
+    {"company": "Karl Lagerfeld", "site": "karllagerfeld", "region": "eu"}
+  ],
+  "ashby": [
+    {"company": "Veliu", "board": "veliu"}
+  ],
+  "rss": []
+}

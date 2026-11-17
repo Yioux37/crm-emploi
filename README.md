@@ -1,6 +1,27 @@
-# CRM Carrière — Direction Opérations & Supply Chain (v2)
+# CRM Carrière — Direction Opérations & Supply Chain (v3)
 
 Un CRM **personnel** de recherche d'emploi pour les secteurs luxe, horlogerie, joaillerie et couture en France, Suisse et Italie. L'application associe la collecte d'offres à un **suivi des candidatures** (statuts, notes privées, contacts, prochaines actions, historique).
+
+## V3 — Force de frappe renforcée (novembre 2026)
+
+La V3 apporte **quatre nouvelles voies** sans toucher aux notes et candidatures privées de la V2 :
+
+1. **Lever + Ashby + RSS/Teamtailor** : lecture d'annonces publiques depuis les interfaces autorisées et explicitement configurées dans `sources_plus.json`. Deux employeurs vérifiés servent d'exemples initiaux ; tu peux en ajouter d'autres au fil de la veille.
+2. **24 sites explorés** via leurs liens indexés : portails spécialisés luxe (FashionJobs), emploi cadres (APEC, Cadremploi, jobs.ch, jobup.ch, JobScout24, Welcome to the Jungle), cabinets de recrutement (Michael Page, Robert Walters, Hays, Morgan Philips, Luxe Talent), et offres d'autres ATS. Le scan interroge **12 sites par jour** en rotation, pas 24 simultanément ; un index peut ne pas retourner de résultat.
+3. **Signaux marché** : articles publics d'investissement, extension de manufactures, nominations et acquisitions chez les maisons ciblées ; visibles dans la page dédiée **Signaux marché**. Ce ne sont **pas** des postes ouverts.
+4. **Recherche Brave facultative** : si `BRAVE_SEARCH_API_KEY` est enregistré dans les Secrets GitHub, les recherches indexées et la veille presse passent par l'API Brave, sinon par `ddgs`. Aucune clé n'est nécessaire pour les flux ATS publics.
+
+Le scan conserve le filtrage France/Suisse/Italie, le niveau direction et le métier opérations/supply chain, la déduplication intersources et le scoring existants. Les **pays ne sont jamais devinés depuis les domaines des sites**.
+
+### Limites et bonnes pratiques
+
+- Il n'existe pas d'accès légal et gratuit universel à toutes les offres. Les sites sans flux ouvert sont seulement repérés via les liens indexés, et tous les résultats ne sont pas forcément indexés ou actuels.
+- Les identifiants de tableaux et URLs d'API sont spécifiques à chaque entreprise. Ne pas deviner des endpoints ni contourner login, CAPTCHA ou blocage. Respecter les conditions et les limites de requêtes de chaque site.
+- LinkedIn interdit le scraping automatisé non autorisé ; la V3 **n'étend pas** son ancien collecteur LinkedIn. Un remplacement conforme par alertes/fournisseurs autorisés est recommandé avant d'industrialiser le scan.
+- L'API Offres d'emploi de France Travail n'est actuellement pas en libre distribution ; demander l'accès via France Travail si nécessaire plutôt que de tenter de la contourner.
+- **Aucun scan des sources externes n'a été exécuté dans l'environnement de livraison** ; les nouveaux parseurs sont testés hors réseau. Contrôler la première exécution dans GitHub Actions.
+
+Lis [`DEPLOIEMENT_V3.md`](DEPLOIEMENT_V3.md) pour remplacer la V2 sur GitHub puis déployer dans Streamlit Cloud sans exposer des secrets.
 
 ## Nouveautés de la v2
 
@@ -46,7 +67,7 @@ Pour lancer un scan manuel depuis le terminal :
 python scraper.py --output offres_detectees.csv --report scan_rapport.json
 ```
 
-Ou utiliser le bouton **Rechercher de nouvelles offres** dans la barre latérale. Les scans utilisent LinkedIn public, les ATS des maisons et la recherche web via `ddgs`, sans clé RapidAPI. Les sites tiers peuvent bloquer ou changer leur HTML/API ; un scan en panne **ne supprime aucune offre** et remonte une erreur. Le fonctionnement des sources externes doit être vérifié sur le réseau du déploiement.
+Ou utiliser le bouton **Rechercher de nouvelles offres** dans la barre latérale. Les scans utilisent les ATS déjà configurés, des APIs publiques Lever/Ashby, des flux RSS et la recherche web via `ddgs` ou Brave ; le collecteur LinkedIn hérité de la V2 est également présent et mérite une revue de conformité. Les sites tiers peuvent bloquer ou changer leur HTML/API ; un scan en panne **ne supprime aucune offre** et remonte une erreur. Le fonctionnement des sources externes doit être vérifié sur le réseau du déploiement.
 
 ## Hébergement et préservation des données — important
 
@@ -109,7 +130,13 @@ storage.py                    Base de données, import historique, actions, back
 matching.py                   Pays, URL, rapprochement des doublons
 merge_feed.py                 Fusion du flux public avec sources alternatives
 scoring.py                    Priorisation et explications du score
-scraper.py                    Collecte LinkedIn/ATS/web
+scraper.py                    Collecte LinkedIn historique/ATS/web + intégration V3
+sources_plus.py               Lever, Ashby, RSS, index spécialisé
+sources_plus.json             Maisons et flux ATS additionnels (sans secrets)
+search_gateway.py             Brave Search API facultative ou DDGS
+market_signals.py             Signaux économiques séparés des annonces
+signaux_marche.csv             Signaux publics séparés du CRM
+DEPLOIEMENT_V3.md             Guide de publication GitHub + Streamlit
 link_health.py                Vérification prudente d'un lien
 notifications.py              Alertes SMTP facultatives + aperçu CLI
 offres_detectees.csv          Annonces publiques (committables)
