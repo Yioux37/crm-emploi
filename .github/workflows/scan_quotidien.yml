@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
-      INDEX_MAX_QUERIES: "20"
+      INDEX_MAX_QUERIES: "30"
       NEWS_MAX_QUERIES: "5"
     steps:
       - name: Recuperer le depot
