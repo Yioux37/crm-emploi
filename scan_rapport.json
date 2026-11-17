@@ -1,0 +1,123 @@
+{
+  "date_scan": "2026-11-17",
+  "par_source": {
+    "LinkedIn Offres": 7,
+    "Portails ATS": 2,
+    "Web et posts": 0,
+    "ATS complementaires": 2,
+    "Portails specialises": 0
+  },
+  "annonces_brutes": 11,
+  "annonces_nouvelles": 1,
+  "total_historique": 9,
+  "statut": "ok",
+  "etat_sources": {
+    "Lever / Karl Lagerfeld": {
+      "brutes": 54,
+      "etat": "ok"
+    },
+    "Ashby / Veliu": {
+      "brutes": 0,
+      "etat": "ok"
+    },
+    "Greenhouse / Jacquemus": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Greenhouse / Isabel Marant": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "SmartRecruiters / Breitling": {
+      "brutes": 0,
+      "etat": "ok"
+    },
+    "SmartRecruiters / Audemars Piguet": {
+      "brutes": 80,
+      "etat": "ok"
+    },
+    "Index / FashionJobs France": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / FashionJobs Suisse": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / FashionJobs Italie": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / APEC": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Jobs.ch": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Jobup Suisse": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Cadremploi": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Welcome to the Jungle": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / HelloWork": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Indeed France (index public)": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Indeed Suisse (index public)": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Indeed Italie (index public)": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Rolex": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Patek Philippe": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Audemars Piguet": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Breitling": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Cartier": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Prada Group": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Moncler Group": {
+      "brutes": 0,
+      "etat": "erreur"
+    },
+    "Index / Gucci": {
+      "brutes": 0,
+      "etat": "erreur"
+    }
+  },
+  "signaux_detectes": 0,
+  "signaux_total": 0,
+  "signaux_nouveaux": 0
+}
