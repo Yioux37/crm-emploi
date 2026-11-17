@@ -1,162 +1,310 @@
 {
+  "version": 6,
   "date_scan": "2026-11-17",
+  "statut": "partiel",
   "par_source": {
-    "LinkedIn Offres": 7,
-    "Portails ATS": 2,
-    "Web et posts": 0,
-    "ATS complementaires": 2,
-    "Portails specialises": 0
+    "Workday publics": 0,
+    "ATS publics configures": 2,
+    "Index gratuit": 0
   },
-  "annonces_brutes": 11,
+  "annonces_brutes": 2,
+  "resultats_sources": 144,
+  "annonces_retenues": 2,
   "annonces_nouvelles": 0,
   "total_historique": 9,
-  "statut": "ok",
+  "sources_en_erreur": 16,
+  "sources_repondant": 36,
   "etat_sources": {
+    "LinkedIn direct": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "manuel",
+      "detail": "Consultation manuelle uniquement, pas de collecte automatisee"
+    },
+    "Recherche web historique": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "desactive",
+      "detail": "Requetes anciennes trop complexes et peu fiables"
+    },
+    "Workday / Richemont": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Kering": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / LVMH": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Louis Vuitton": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Christian Dior": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Loro Piana": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Bulgari": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / TAG Heuer": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Hublot": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Zenith": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Guerlain": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Tiffany & Co.": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Salvatore Ferragamo": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
+    "Workday / Puig": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 429"
+    },
     "Lever / Karl Lagerfeld": {
       "brutes": 54,
+      "retenues": 0,
       "etat": "ok"
     },
     "Ashby / Veliu": {
       "brutes": 0,
-      "etat": "ok"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Greenhouse / Jacquemus": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTPError"
     },
     "Greenhouse / Isabel Marant": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTPError"
     },
     "SmartRecruiters / Breitling": {
       "brutes": 0,
-      "etat": "ok"
+      "retenues": 0,
+      "etat": "vide"
     },
     "SmartRecruiters / Audemars Piguet": {
       "brutes": 80,
+      "retenues": 2,
       "etat": "ok"
+    },
+    "SmartRecruiters / Richard Mille": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "vide"
+    },
+    "SmartRecruiters / Acrotec Group": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / FashionJobs France": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / FashionJobs Suisse": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / FashionJobs Italie": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / APEC": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Jobs.ch": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Jobup Suisse": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Cadremploi": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Welcome to the Jungle": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / HelloWork": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Indeed France (index public)": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Indeed Suisse (index public)": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Indeed Italie (index public)": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Armani": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Valentino": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Greenhouse Jobs": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Lever EU": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Lever Global": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Ashby Jobs": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / SmartRecruiters Jobs": {
-      "brutes": 0,
-      "etat": "erreur"
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
     },
     "Index / Workday Careers": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Teamtailor Careers": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Recruitee Careers": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / France Travail (index public)": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / JobScout24": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Jobwatch Horlogerie": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Cerulean Suisse luxe": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / InfoJobs Italie": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Monster Italie": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Experteer": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     },
     "Index / Business of Fashion Careers": {
       "brutes": 0,
-      "etat": "erreur"
+      "retenues": 0,
+      "etat": "vide"
     }
   },
+  "avertissement": "Des sources ont echoue. Les anciennes offres restent conservees.",
   "signaux_detectes": 0,
   "signaux_total": 0,
   "signaux_nouveaux": 0
