@@ -1,5 +1,5 @@
 {
-  "description": "V6: identifiants explicites de flux publics; verifiez chaque identifiant avant de compter sur la source. Aucune authentification, aucun cout.",
+  "description": "V9 : flux publics des pages carrieres officielles. Chaque entree a ete recensee le 18/11/2026 ; lancer `python3 verifier_sources.py` depuis le Mac pour tester qu'elles repondent. Aucune authentification, aucun cout.",
   "lever": [
     {
       "company": "Karl Lagerfeld",
@@ -11,16 +11,6 @@
     {
       "company": "Veliu",
       "board": "veliu"
-    }
-  ],
-  "greenhouse": [
-    {
-      "company": "Jacquemus",
-      "board": "jacquemus"
-    },
-    {
-      "company": "Isabel Marant",
-      "board": "isabelmarant"
     }
   ],
   "smartrecruiters": [
@@ -43,5 +33,41 @@
   ],
   "rss": [],
   "workable": [],
-  "recruitee": []
+  "recruitee": [],
+  "a_verifier": {
+    "greenhouse_404": [
+      {
+        "company": "Jacquemus",
+        "board": "jacquemus"
+      },
+      {
+        "company": "Isabel Marant",
+        "board": "isabelmarant"
+      }
+    ],
+    "note": "Identifiants Greenhouse en 404 au scan du 18/11/2026 : maisons a recenser a nouveau."
+  },
+  "greenhouse": [],
+  "successfactors": [
+    {
+      "company": "Prada Group",
+      "host": "jobs.pradagroup.com"
+    },
+    {
+      "company": "Moncler",
+      "host": "jobs.moncler.com"
+    },
+    {
+      "company": "Valentino",
+      "host": "jobs.valentino.com"
+    }
+  ],
+  "oracle": [
+    {
+      "company": "Hermès",
+      "host": "talents.hermes.com",
+      "site": "CX",
+      "language": "fr"
+    }
+  ]
 }

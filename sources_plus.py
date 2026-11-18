@@ -270,6 +270,102 @@ def fetch_rss(session, board: dict) -> list[dict]:
     return jobs
 
 
+# ------------------------------------------------------------------------------
+# Connecteurs "page carrieres officielle" : on lit la meme source que le site
+# carrieres de la maison. Toutes les offres d'un mot-cle, filtre ensuite chez nous.
+# ------------------------------------------------------------------------------
+
+# Mots-cles de niveau Direction : un site SuccessFactors / Oracle d'une grande
+# maison compte des milliers d'offres boutique ; on ne rapatrie que le haut.
+SENIOR_KEYWORDS = ('director', 'directeur', 'direttore', 'head of', 'responsable')
+HOST = re.compile(r'^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$')
+
+
+def _safe_host(value: object) -> str:
+    host = str(value or '').strip().lower()
+    if not HOST.fullmatch(host):
+        raise ValueError(f'Nom de domaine invalide : {host!r}')
+    return host
+
+
+def parse_successfactors_search(html: str, host: str) -> list[dict]:
+    """Lit une page /search/ d'un site carrieres SAP SuccessFactors (RMK).
+
+    Structure : <tr class="data-row"> avec a.jobTitle-link et span.jobLocation.
+    """
+    soup = BeautifulSoup(html or '', 'html.parser')
+    rows = []
+    for row in soup.select('tr.data-row, li.job-tile'):
+        link = row.select_one('a.jobTitle-link') or row.find('a', href=re.compile(r'^/job/'))
+        if not link:
+            continue
+        title = ' '.join(link.get_text(' ', strip=True).split())
+        href = link.get('href', '')
+        location = row.select_one('.jobLocation')
+        rows.append({'title': title, 'url': f'https://{host}{href}' if href.startswith('/') else href,
+                     'location': ' '.join(location.get_text(' ', strip=True).split()) if location else ''})
+    return [r for r in rows if r['title'] and r['url']]
+
+
+def fetch_successfactors(session, board: dict) -> list[dict]:
+    """Sites carrieres SAP SuccessFactors (ex. jobs.pradagroup.com, jobs.moncler.com).
+
+    Page publique /search/?q=... : 25 offres par page, 2 pages par mot-cle maximum.
+    """
+    company = str(board['company']).strip()
+    host = _safe_host(board['host'])
+    rows, seen = [], set()
+    for keyword in board.get('keywords') or SENIOR_KEYWORDS:
+        for startrow in (0, 25):
+            resp = session.get(f'https://{host}/search/', headers=HEADERS, timeout=15,
+                               params={'q': keyword, 'locale': board.get('locale', 'en_US'),
+                                       'sortColumn': 'referencedate', 'sortDirection': 'desc',
+                                       'startrow': startrow})
+            resp.raise_for_status()
+            page = parse_successfactors_search(resp.text, host)
+            for job in page:
+                if job['url'] in seen:
+                    continue
+                seen.add(job['url'])
+                rows.append(_raw(job['title'], company, job['location'], job['url'],
+                                 'Sites Maisons de Luxe', context=f"{company} {job['location']}"))
+            if len(page) < 25:
+                break  # derniere page atteinte
+    return rows
+
+
+def fetch_oracle_recruiting(session, board: dict) -> list[dict]:
+    """Oracle Recruiting Cloud (ex. Hermes : talents.hermes.com, site CX).
+
+    API publique utilisee par la page carrieres elle-meme (sans compte) :
+    /hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    """
+    company = str(board['company']).strip()
+    host = _safe_host(board['host'])
+    site = _safe_slug(board.get('site', 'CX'))
+    language = _safe_slug(board.get('language', 'fr'))
+    rows, seen = [], set()
+    for keyword in board.get('keywords') or SENIOR_KEYWORDS:
+        finder = (f'findReqs;siteNumber={site},keyword="{keyword}",limit=100,offset=0,'
+                  'sortBy=POSTING_DATES_DESC')
+        data = _get_json(session, f'https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions',
+                         params={'onlyData': 'true', 'expand': 'requisitionList.secondaryLocations',
+                                 'finder': finder})
+        for block in data.get('items', []) if isinstance(data, dict) else []:
+            for req in block.get('requisitionList') or []:
+                job_id = str(req.get('Id') or '')
+                if not IDENTIFIER.fullmatch(job_id) or job_id in seen:
+                    continue
+                seen.add(job_id)
+                location = str(req.get('PrimaryLocation') or '')
+                rows.append(_raw(req.get('Title'), company, location,
+                                 f'https://{host}/{language}/sites/{site}/job/{job_id}',
+                                 'Sites Maisons de Luxe',
+                                 country_field=str(req.get('PrimaryLocationCountry') or ''),
+                                 context=f"{company} {location} {req.get('ShortDescriptionStr') or ''}"[:750]))
+    return rows
+
+
 def fetch_public_ats(config: dict | None = None, session=None, stats: dict | None = None) -> list[dict]:
     """Interroge seulement des interfaces publiques explicitement configurees.
 
@@ -284,7 +380,9 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
                  ('SmartRecruiters', config.get('smartrecruiters', []), fetch_smartrecruiters),
                  ('Workable', config.get('workable', []), fetch_workable),
                  ('Recruitee', config.get('recruitee', []), fetch_recruitee),
-                 ('RSS/Atom', config.get('rss', []), fetch_rss)]
+                 ('RSS/Atom', config.get('rss', []), fetch_rss),
+                 ('SuccessFactors', config.get('successfactors', []), fetch_successfactors),
+                 ('Oracle Recruiting', config.get('oracle', []), fetch_oracle_recruiting)]
     total_boards = sum(len(boards) for _, boards, _ in providers)
     board_number = 0
     for provider, boards, fn in providers:

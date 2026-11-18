@@ -310,21 +310,13 @@ def fetch_portails_directs():
     """Interroge en direct les API Workday, SmartRecruiters et Greenhouse des groupes et Maisons."""
     offres = []
 
+    # Portails Workday VERIFIES le 18/11/2026 (page carrieres en ligne).
+    # Les 12 autres tenants devines (LVMH, Louis Vuitton, Dior, TAG Heuer, Bulgari,
+    # Loro Piana, Hublot, Zenith, Guerlain, Tiffany, Ferragamo, Puig) n'existaient
+    # pas : ils sont listes dans WORKDAY_A_VERIFIER et testes par verifier_sources.py.
     tenants_workday = [
         ("Richemont", "https://richemont.wd3.myworkdayjobs.com/wday/cxs/richemont/Richemont/jobs", "https://richemont.wd3.myworkdayjobs.com/fr-FR/Richemont"),
         ("Kering", "https://kering.wd3.myworkdayjobs.com/wday/cxs/kering/Kering/jobs", "https://kering.wd3.myworkdayjobs.com/fr-FR/Kering"),
-        ("LVMH", "https://lvmh.wd3.myworkdayjobs.com/wday/cxs/lvmh/LVMH/jobs", "https://lvmh.wd3.myworkdayjobs.com/fr-FR/LVMH"),
-        ("Louis Vuitton", "https://louisvuitton.wd3.myworkdayjobs.com/wday/cxs/louisvuitton/LouisVuitton/jobs", "https://louisvuitton.wd3.myworkdayjobs.com/fr-FR/LouisVuitton"),
-        ("Christian Dior", "https://christiandior.wd3.myworkdayjobs.com/wday/cxs/christiandior/ChristianDiorCouture/jobs", "https://christiandior.wd3.myworkdayjobs.com/fr-FR/ChristianDiorCouture"),
-        ("Loro Piana", "https://loropiana.wd3.myworkdayjobs.com/wday/cxs/loropiana/LoroPiana/jobs", "https://loropiana.wd3.myworkdayjobs.com/en-US/LoroPiana"),
-        ("Bulgari", "https://bulgari.wd3.myworkdayjobs.com/wday/cxs/bulgari/Bulgari/jobs", "https://bulgari.wd3.myworkdayjobs.com/en-US/Bulgari"),
-        ("TAG Heuer", "https://tagheuer.wd3.myworkdayjobs.com/wday/cxs/tagheuer/TAGHeuer/jobs", "https://tagheuer.wd3.myworkdayjobs.com/fr-FR/TAGHeuer"),
-        ("Hublot", "https://hublot.wd3.myworkdayjobs.com/wday/cxs/hublot/Hublot/jobs", "https://hublot.wd3.myworkdayjobs.com/fr-FR/Hublot"),
-        ("Zenith", "https://zenith.wd3.myworkdayjobs.com/wday/cxs/zenith/Zenith/jobs", "https://zenith.wd3.myworkdayjobs.com/fr-FR/Zenith"),
-        ("Guerlain", "https://guerlain.wd3.myworkdayjobs.com/wday/cxs/guerlain/Guerlain/jobs", "https://guerlain.wd3.myworkdayjobs.com/fr-FR/Guerlain"),
-        ("Tiffany & Co.", "https://tiffany.wd5.myworkdayjobs.com/wday/cxs/tiffany/TiffanyCareers/jobs", "https://tiffany.wd5.myworkdayjobs.com/en-US/TiffanyCareers"),
-        ("Salvatore Ferragamo", "https://ferragamo.wd3.myworkdayjobs.com/wday/cxs/ferragamo/Ferragamo/jobs", "https://ferragamo.wd3.myworkdayjobs.com/en-US/Ferragamo"),
-        ("Puig", "https://puig.wd3.myworkdayjobs.com/wday/cxs/puig/PuigCareers/jobs", "https://puig.wd3.myworkdayjobs.com/en-US/PuigCareers")
     ]
 
     # Mots-clés larges pour capter tous les intitulés exacts des portails Workday
