@@ -3,24 +3,20 @@
   "date_scan": "2026-11-18",
   "statut": "partiel",
   "par_source": {
-    "Workday publics": 0,
+    "Workday publics": 1,
     "ATS publics configures": 2,
-    "Index gratuit": 27
+    "Index gratuit": 4,
+    "Alertes LinkedIn": 0,
+    "LinkedIn direct": 8
   },
-  "annonces_brutes": 29,
-  "resultats_sources": 537,
-  "annonces_retenues": 29,
-  "annonces_nouvelles": 27,
-  "total_historique": 36,
-  "sources_en_erreur": 16,
-  "sources_repondant": 66,
+  "annonces_brutes": 15,
+  "resultats_sources": 831,
+  "annonces_retenues": 15,
+  "annonces_nouvelles": 9,
+  "total_historique": 20,
+  "sources_en_erreur": 14,
+  "sources_repondant": 98,
   "etat_sources": {
-    "LinkedIn direct": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "manuel",
-      "detail": "Consultation manuelle uniquement, pas de collecte automatisee"
-    },
     "Recherche web historique": {
       "brutes": 0,
       "retenues": 0,
@@ -28,88 +24,16 @@
       "detail": "Requetes anciennes trop complexes et peu fiables"
     },
     "Workday / Richemont": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
+      "brutes": 80,
+      "retenues": 1,
+      "etat": "ok",
+      "detail": ""
     },
     "Workday / Kering": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / LVMH": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Louis Vuitton": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Christian Dior": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Loro Piana": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Bulgari": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / TAG Heuer": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Hublot": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Zenith": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Guerlain": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Tiffany & Co.": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Salvatore Ferragamo": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
-    },
-    "Workday / Puig": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 429"
+      "etat": "vide",
+      "detail": ""
     },
     "Lever / Karl Lagerfeld": {
       "brutes": 54,
@@ -120,18 +44,6 @@
       "brutes": 0,
       "retenues": 0,
       "etat": "vide"
-    },
-    "Greenhouse / Jacquemus": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 404 : identifiant de flux introuvable, a verifier"
-    },
-    "Greenhouse / Isabel Marant": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "erreur",
-      "detail": "HTTP 404 : identifiant de flux introuvable, a verifier"
     },
     "SmartRecruiters / Breitling": {
       "brutes": 0,
@@ -153,9 +65,33 @@
       "retenues": 0,
       "etat": "vide"
     },
+    "SuccessFactors / Prada Group": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 403"
+    },
+    "SuccessFactors / Moncler": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "SSLError"
+    },
+    "SuccessFactors / Valentino": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "HTTP 403"
+    },
+    "Oracle Recruiting / Hermès": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "erreur",
+      "detail": "JSONDecodeError"
+    },
     "Index / FashionJobs France": {
       "brutes": 7,
-      "retenues": 0,
+      "retenues": 1,
       "etat": "ok"
     },
     "Index / FashionJobs Suisse": {
@@ -198,6 +134,21 @@
       "retenues": 0,
       "etat": "ok"
     },
+    "Index / LinkedIn Jobs France (index public)": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / LinkedIn Jobs Suisse (index public)": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / LinkedIn Jobs Italie (index public)": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
     "Index / Indeed France (index public)": {
       "brutes": 7,
       "retenues": 0,
@@ -214,248 +165,449 @@
       "etat": "ok"
     },
     "Index / LVMH": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Kering": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Richemont": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Swatch Group": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Hermes": {
-      "brutes": 7,
-      "retenues": 3,
-      "etat": "ok"
-    },
-    "Index / Chanel": {
-      "brutes": 7,
-      "retenues": 2,
-      "etat": "ok"
-    },
-    "Index / Rolex": {
-      "brutes": 7,
-      "retenues": 2,
-      "etat": "ok"
-    },
-    "Index / Patek Philippe": {
-      "brutes": 7,
-      "retenues": 3,
-      "etat": "ok"
-    },
-    "Index / Audemars Piguet": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Breitling": {
-      "brutes": 7,
-      "retenues": 1,
-      "etat": "ok"
-    },
-    "Index / Cartier": {
-      "brutes": 7,
-      "retenues": 2,
-      "etat": "ok"
-    },
-    "Index / Prada Group": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Moncler Group": {
-      "brutes": 7,
-      "retenues": 1,
-      "etat": "ok"
-    },
-    "Index / Gucci": {
-      "brutes": 7,
-      "retenues": 1,
-      "etat": "ok"
-    },
-    "Index / Louis Vuitton": {
-      "brutes": 6,
-      "retenues": 1,
-      "etat": "ok"
-    },
-    "Index / Dior": {
-      "brutes": 7,
-      "retenues": 2,
-      "etat": "ok"
-    },
-    "Index / Chopard": {
-      "brutes": 7,
-      "retenues": 2,
-      "etat": "ok"
-    },
-    "Index / TAG Heuer": {
-      "brutes": 7,
-      "retenues": 1,
-      "etat": "ok"
-    },
-    "Index / Loro Piana": {
-      "brutes": 7,
-      "retenues": 2,
-      "etat": "ok"
-    },
-    "Index / Zegna Group": {
-      "brutes": 8,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Longines": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Bulgari": {
       "brutes": 5,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Armani": {
-      "brutes": 7,
+    "Index / Kering": {
+      "brutes": 6,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Richemont": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Swatch Group": {
+      "brutes": 6,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Hermes": {
+      "brutes": 5,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Chanel": {
+      "brutes": 2,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Rolex": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Patek Philippe": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Audemars Piguet": {
+      "brutes": 5,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Breitling": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Cartier": {
+      "brutes": 2,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Prada Group": {
+      "brutes": 3,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Moncler Group": {
+      "brutes": 3,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Gucci": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Louis Vuitton": {
+      "brutes": 4,
       "retenues": 1,
       "etat": "ok"
     },
+    "Index / Dior": {
+      "brutes": 2,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Chopard": {
+      "brutes": 5,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / TAG Heuer": {
+      "brutes": 5,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "Index / Loro Piana": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Zegna Group": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Longines": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Bulgari": {
+      "brutes": 1,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Armani": {
+      "brutes": 4,
+      "retenues": 0,
+      "etat": "ok"
+    },
     "Index / Valentino": {
+      "brutes": 1,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Fed Supply": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "vide"
+    },
+    "Index / Greenhouse Jobs": {
       "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Lever EU": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Lever Global": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Ashby Jobs": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / SmartRecruiters Jobs": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Workday Careers": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Teamtailor Careers": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Recruitee Careers": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / France Travail (index public)": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / JobScout24": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Jobwatch Horlogerie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Cerulean Suisse luxe": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / InfoJobs Italie": {
+      "brutes": 3,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Monster Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Experteer": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Business of Fashion Careers": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "vide"
+    },
+    "Index / FashionUnited Careers": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "vide"
+    },
+    "Index / Meteojob France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Monster France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Jobijoba France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn / Alertes e-mail": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "desactive",
+      "detail": "Ajouter IMAP_USER et IMAP_PASSWORD dans les Secrets GitHub"
+    },
+    "LinkedIn direct / directeur supply chain (France)": {
+      "brutes": 10,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur des opérations (France)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur industriel (France)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur de production (France)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / head of supply chain (France)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur logistique (France)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur supply chain (Switzerland)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur des opérations (Switzerland)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / head of operations (Switzerland)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur industriel (Switzerland)": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / directeur de production horlogère (Switzerland)": {
+      "brutes": 10,
       "retenues": 2,
       "etat": "ok"
     },
-    "Index / Jobwinner Suisse": {
-      "brutes": 7,
+    "LinkedIn direct / direttore supply chain (Italy)": {
+      "brutes": 10,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "LinkedIn direct / direttore operations (Italy)": {
+      "brutes": 10,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Jobtic Suisse": {
-      "brutes": 7,
+    "LinkedIn direct / direttore produzione (Italy)": {
+      "brutes": 10,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Jobeo Suisse": {
-      "brutes": 7,
+    "LinkedIn direct / direttore industriale (Italy)": {
+      "brutes": 10,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Careerjet Suisse": {
-      "brutes": 7,
+    "LinkedIn direct / head of supply chain (Italy)": {
+      "brutes": 10,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Optioncarriere Suisse": {
-      "brutes": 7,
+    "LinkedIn direct / Hermès": {
+      "brutes": 10,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Jobagent Suisse": {
-      "brutes": 7,
+    "LinkedIn direct / Chanel": {
+      "brutes": 10,
       "retenues": 0,
       "etat": "ok"
     },
-    "Index / Emploi Romand": {
+    "LinkedIn direct / Louis Vuitton": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Dior": {
+      "brutes": 10,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Cartier": {
+      "brutes": 10,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Rolex": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Patek Philippe": {
+      "brutes": 10,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Audemars Piguet": {
+      "brutes": 10,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Richemont": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Kering": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / LVMH": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Gucci": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Prada": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Bulgari": {
+      "brutes": 10,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "LinkedIn direct / Moncler": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "erreur",
+      "detail": "HTTP 429 : LinkedIn limite, arret de la serie"
     },
-    "Index / Trovolavoro Italie": {
+    "LinkedIn direct / Loro Piana": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Cliclavoro Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Chopard": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Jooble Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Breitling": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Jobrapido Italie": {
-      "brutes": 7,
+    "LinkedIn direct / TAG Heuer": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Experteer Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Swatch Group": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Glassdoor Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Vacheron Constantin": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Adecco Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Van Cleef & Arpels": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Gi Group Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Zegna": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     },
-    "Index / Manpower Italie": {
-      "brutes": 7,
+    "LinkedIn direct / Valentino": {
+      "brutes": 0,
       "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Adecco France": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Randstad France": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Manpower France": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Expectra France": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Adecco Suisse": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / EURES Europe": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Michael Page France": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Michael Page Suisse": {
-      "brutes": 7,
-      "retenues": 0,
-      "etat": "ok"
+      "etat": "non_interroge",
+      "detail": "Serie arretee apres un refus LinkedIn"
     }
   },
   "avertissement": "Des sources ont echoue. Les anciennes offres restent conservees.",
-  "signaux_detectes": 1,
+  "signaux_detectes": 2,
   "signaux_total": 2,
   "signaux_nouveaux": 0
 }
