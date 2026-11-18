@@ -296,9 +296,15 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
                                     'etat': 'ok' if batch else 'vide'}
             except (requests.RequestException, ValueError, KeyError, ET.ParseError, TypeError) as exc:
                 print(f'⚠️ [{label}] {exc}')
+                detail = type(exc).__name__
+                code = getattr(getattr(exc, 'response', None), 'status_code', None)
+                if code == 404:
+                    detail = 'HTTP 404 : identifiant de flux introuvable, a verifier'
+                elif code:
+                    detail = f'HTTP {code}'
                 if stats is not None:
                     stats[label] = {'brutes': 0, 'retenues': 0,
-                                    'etat': 'erreur', 'detail': type(exc).__name__}
+                                    'etat': 'erreur', 'detail': detail}
     return jobs
 
 
@@ -392,7 +398,8 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
                             for remaining_name, _, _, _, _ in remaining:
                                 stats[f'Index / {remaining_name}'] = {
                                     'brutes': 0, 'retenues': 0, 'etat': 'non_interroge',
-                                    'detail': 'Moteur indisponible apres erreurs repetees'}
+                                    'detail': 'Moteur indisponible apres erreurs repetees '
+                                              '(DDGS bloque : configurer BRAVE_SEARCH_API_KEY)'}
                         print(f'⚠️ Moteur de recherche indisponible : {len(remaining)} sites reportes. '
                               'Les flux ATS continuent normalement.')
                         break

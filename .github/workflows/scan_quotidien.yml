@@ -18,6 +18,9 @@ jobs:
     env:
       INDEX_MAX_QUERIES: "30"
       NEWS_MAX_QUERIES: "5"
+      # Sans cette ligne, le secret GitHub n'est jamais transmis au script :
+      # le scan retombe sur DDGS, bloque depuis les IP GitHub Actions.
+      BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4

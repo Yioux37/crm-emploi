@@ -403,13 +403,35 @@ def fetch_portails_directs():
         "Direttore"
     ]
 
-    headers = {
+    # Une seule session HTTP (cookies conserves) et des en-tetes de navigateur
+    # complets : Workday renvoie 429 aux requetes "nues" venant de datacenters.
+    session = requests.Session()
+    session.headers.update({
         "Accept": "application/json",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0"
-    }
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"),
+    })
+    pause_workday = float(os.getenv("WORKDAY_PAUSE_SECONDS", "3"))
 
-    for groupe_nom, api_url, base_url in tenants_workday:
+    def post_workday(api_url, base_url, payload):
+        """POST avec un seul nouvel essai si Workday repond 429 (limite de debit)."""
+        origin = base_url.split("/", 3)
+        extra = {"Origin": "/".join(origin[:3]), "Referer": base_url}
+        resp = session.post(api_url, json=payload, headers=extra, timeout=15)
+        if resp.status_code == 429:
+            try:
+                wait = min(30.0, float(resp.headers.get("Retry-After", 10)))
+            except ValueError:
+                wait = 10.0
+            time.sleep(wait)
+            resp = session.post(api_url, json=payload, headers=extra, timeout=15)
+        return resp
+
+    for numero, (groupe_nom, api_url, base_url) in enumerate(tenants_workday):
+        if numero and pause_workday:
+            time.sleep(pause_workday)  # espace les tenants au lieu de les enchainer
         print(f"⏳ [Workday public] {groupe_nom}...")
         liens_vus = set()
         ok_requests = 0
@@ -418,9 +440,9 @@ def fetch_portails_directs():
         accepted = 0
         for kw in mots_cles:
             try:
-                resp = requests.post(api_url, json={
+                resp = post_workday(api_url, base_url, {
                     'appliedFacets': {}, 'limit': 20, 'offset': 0, 'searchText': kw,
-                }, headers=headers, timeout=10)
+                })
                 if resp.status_code != 200:
                     errors.append(f'HTTP {resp.status_code}')
                     # Ne pas multiplier les requetes apres un refus.
