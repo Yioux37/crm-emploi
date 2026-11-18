@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import date
 import argparse
 import json
+import progress
 from matching import country_from_location, canonical_url
 from merge_feed import merge_feed
 from storage import SCRAPER_COLUMNS
@@ -361,6 +362,7 @@ def fetch_portails_directs():
         return resp
 
     for numero, (groupe_nom, api_url, base_url) in enumerate(tenants_workday):
+        progress.tick(numero, len(tenants_workday), groupe_nom)
         if numero and pause_workday:
             time.sleep(pause_workday)  # espace les tenants au lieu de les enchainer
         print(f"⏳ [Workday public] {groupe_nom}...")
@@ -631,12 +633,28 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
         'brutes': 0, 'retenues': 0, 'etat': 'desactive',
         'detail': 'Requetes anciennes trop complexes et peu fiables',
     }
-    for name, provider in (
+    providers = (
         ('Workday publics', fetch_portails_directs),
         ('ATS publics configures', fetch_ats_complementaires),
         ('Index gratuit', fetch_portails_specialises),
         ('Alertes LinkedIn', fetch_alertes_linkedin),
-    ) + ((('LinkedIn direct', fetch_linkedin_jobs),) if linkedin else ()):
+    ) + ((('LinkedIn direct', fetch_linkedin_jobs),) if linkedin else ())
+    # Barre de progression : une etape par collecteur, + signaux + enregistrement.
+    etapes = [name for name, _ in providers]
+    if signals_output is not None:
+        etapes.append('Signaux marche')
+    etapes.append('Enregistrement')
+    progress.start(etapes)
+    try:
+        return _executer_collecte(providers, output, report, signals_output, linkedin)
+    finally:
+        progress.finish()
+
+
+def _executer_collecte(providers, output, report, signals_output, linkedin):
+    collected, counts = [], {}
+    for name, provider in providers:
+        progress.step(name)
         try:
             rows = provider()
         except Exception as exc:
@@ -647,6 +665,7 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
         counts[name] = len(rows)
         collected.extend(rows)
 
+    progress.step('Enregistrement')
     current_day = date.today().isoformat()
     output_path = os.path.abspath(output)
     report_path = os.path.abspath(report)
@@ -685,6 +704,7 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
         # Important : aucune re-ecriture du flux public si 0 offre retenue.
         print('⚠️ Aucune nouvelle offre exploitable. Le flux precedent est conserve.')
     if signals_output is not None:
+        progress.step('Signaux marche')
         try:
             from market_signals import update_signals
             result.update(update_signals(signals_output, MAISONS_ET_MANUFACTURES))

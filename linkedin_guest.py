@@ -35,6 +35,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
+import progress
 from linkedin_alerts import JOB_ID, canonical_job_url
 
 SEARCH_URL = 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
@@ -116,6 +117,7 @@ def fetch_linkedin_guest_jobs(stats: dict | None = None, session=None,
     queries = build_queries()[:max_requests]
     rows, seen = [], set()
     for index, (label, params) in enumerate(queries):
+        progress.tick(index, len(queries), label.replace('LinkedIn direct / ', ''))
         if index:
             sleep(random.uniform(*pause))  # rythme humain, jamais en rafale
         try:

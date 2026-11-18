@@ -118,24 +118,58 @@ st.sidebar.radio("Navigation", PAGES, key="current_page", label_visibility="coll
 st.sidebar.divider()
 st.sidebar.caption("Collecte automatique : GitHub Actions met a jour "
                    "les annonces publiques du depot.")
+def run_scan_with_progress(timeout_s: int = 900):
+    """Lance scraper.py et anime une barre de progression pendant le scan.
+
+    Etape par etape :
+      1. SCAN_PROGRESS=json demande au scraper d'ecrire des lignes "@@PROGRESS {...}".
+      2. subprocess.Popen (et non subprocess.run) permet de lire ces lignes
+         EN DIRECT, au lieu d'attendre la fin du scan.
+      3. Chaque ligne met a jour st.progress (barre) et un texte d'etape.
+    Renvoie (code de sortie, 5000 derniers caracteres du journal).
+    """
+    import json as _json, os as _os, time as _time
+    env = dict(_os.environ, SCAN_PROGRESS="json", PYTHONUNBUFFERED="1")
+    bar = st.sidebar.progress(0.0, text="Démarrage du scan…")
+    proc = subprocess.Popen(
+        [sys.executable, str(ROOT / "scraper.py"), "--output", str(ROOT / "offres_detectees.csv"),
+         "--report", str(ROOT / "scan_rapport.json")],
+        cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, bufsize=1,
+    )
+    started, log = _time.monotonic(), []
+    for line in proc.stdout:
+        if _time.monotonic() - started > timeout_s:
+            proc.kill()
+            raise subprocess.TimeoutExpired(proc.args, timeout_s)
+        if line.startswith("@@PROGRESS "):
+            info = _json.loads(line[len("@@PROGRESS "):])
+            if info.get("done_all"):
+                bar.progress(1.0, text="Scan terminé")
+                continue
+            detail = f" · {info['done']}/{info['total']}" if info.get("total") else ""
+            label = f" · {info['label']}" if info.get("label") else ""
+            eta = f" · {info['eta']}" if info.get("eta") else ""
+            bar.progress(float(info.get("overall", 0)),
+                         text=f"Étape {info['step']}/{info['steps']} : {info['name']}{detail}{label}{eta}")
+        else:
+            log.append(line)
+    code = proc.wait()
+    return code, "".join(log)[-5000:]
+
+
 if st.sidebar.button("🔎 Rechercher de nouvelles offres", width="stretch"):
-    with st.spinner("Interrogation des portails et moteurs de recherche…"):
-        try:
-            result = subprocess.run(
-                [sys.executable, str(ROOT / "scraper.py"), "--output", str(ROOT / "offres_detectees.csv"),
-                 "--report", str(ROOT / "scan_rapport.json")],
-                cwd=ROOT, capture_output=True, text=True, timeout=900,
-            )
-            if result.returncode:
-                st.sidebar.error("Le scan a échoué : aucune donnée existante n'a été effacée.")
-                with st.sidebar.expander("Détails du scan"):
-                    st.code((result.stderr + "\n" + result.stdout)[-5000:])
-            else:
-                new_count = store.import_csv(ROOT / "offres_detectees.csv")
-                st.session_state["notice"] = f"Scan terminé : {new_count} nouvelle(s) opportunité(s) dans le CRM."
-                st.rerun()
-        except subprocess.TimeoutExpired:
-            st.sidebar.error("Scan trop long : l'opération a été interrompue, sans suppression d'offre.")
+    try:
+        code, journal = run_scan_with_progress()
+        if code:
+            st.sidebar.error("Le scan a échoué : aucune donnée existante n'a été effacée.")
+            with st.sidebar.expander("Détails du scan"):
+                st.code(journal)
+        else:
+            new_count = store.import_csv(ROOT / "offres_detectees.csv")
+            st.session_state["notice"] = f"Scan terminé : {new_count} nouvelle(s) opportunité(s) dans le CRM."
+            st.rerun()
+    except subprocess.TimeoutExpired:
+        st.sidebar.error("Scan trop long : l'opération a été interrompue, sans suppression d'offre.")
 
 if st.sidebar.button("↻ Actualiser le flux", width="stretch"):
     try:

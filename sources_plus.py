@@ -19,6 +19,8 @@ from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
 import requests
+
+import progress
 from bs4 import BeautifulSoup
 
 from search_gateway import default_search_client
@@ -283,9 +285,13 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
                  ('Workable', config.get('workable', []), fetch_workable),
                  ('Recruitee', config.get('recruitee', []), fetch_recruitee),
                  ('RSS/Atom', config.get('rss', []), fetch_rss)]
+    total_boards = sum(len(boards) for _, boards, _ in providers)
+    board_number = 0
     for provider, boards, fn in providers:
         for board in boards:
             name = str(board.get('company', '?'))
+            progress.tick(board_number, total_boards, f'{provider} / {name}')
+            board_number += 1
             label = f'{provider} / {name}'
             try:
                 batch = [x for x in fn(session, board) if x['url'] and x['title']]
@@ -410,6 +416,7 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
     try:
         with ddgs_factory() as engine:
             for index, (name, domain, source, language, _) in enumerate(sites):
+                progress.tick(index, len(sites), name)
                 label = f'Index / {name}'
                 terms = LIGHT_TERMS[language]
                 # Intitule different chaque jour pour un meme site (6 intitules par langue).
