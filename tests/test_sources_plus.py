@@ -125,22 +125,52 @@ class PublicATSTests(unittest.TestCase):
                       'it.indeed.com', 'jobs.ch', 'jobup.ch'}
         daily = {domain for _, domain, _, _, priority in SEARCH_SITES if priority}
         self.assertTrue(essentials.issubset(daily))
-        self.assertEqual(catalog_totals()['priority_daily'], 12)
+        self.assertEqual(catalog_totals()['priority_daily'], 36)
+
+    def test_all_luxury_houses_checked_daily(self):
+        from source_catalog import SEARCH_SITES
+        houses = {d for _, d, src, _, prio in SEARCH_SITES
+                  if src == 'Sites Maisons de Luxe' and prio}
+        self.assertTrue({'hermes.com', 'chanel.com', 'rolex.com', 'dior.com',
+                         'cartier.com', 'louisvuitton.com'}.issubset(houses))
+        for day in range(3):
+            chosen = {d for _, d, _, _, _ in
+                      select_search_sites(date(2026, 11, 17) + timedelta(days=day), budget=60)}
+            self.assertTrue(houses.issubset(chosen))
+
+    def test_luxury_house_search_is_open_to_every_jobboard(self):
+        from sources_plus import build_index_query
+        q = build_index_query('Hermes', 'hermes.com', 'Sites Maisons de Luxe', 'directeur supply chain')
+        self.assertEqual(q, '"Hermes" directeur supply chain')
+        q = build_index_query('APEC', 'apec.fr', 'Portails cadres', 'directeur industriel')
+        self.assertEqual(q, 'site:apec.fr directeur industriel')
+        site = [('Hermes', 'hermes.com', 'Sites Maisons de Luxe', 'fr', True)]
+        ddgs = FakeDDGS([
+            {'title': 'Directeur Supply Chain · Hermès', 'body': 'Paris, France',
+             'href': 'https://fr.fashionjobs.com/jobs/456'},
+            {'title': 'Directeur Supply Chain · Autre maison', 'body': 'Paris, France',
+             'href': 'https://fr.fashionjobs.com/jobs/789'},
+        ])
+        with patch('sources_plus.select_search_sites', return_value=site):
+            res = fetch_indexed_jobs(date(2026, 11, 17), budget=1,
+                                     ddgs_factory=lambda: ddgs, sleep_seconds=0)
+        self.assertEqual([r['url'] for r in res], ['https://fr.fashionjobs.com/jobs/456'])
+        self.assertNotIn('site:', ddgs.queries[0])
 
     def test_budget_rotates_web_sources(self):
-        a = select_search_sites(date(2026, 11, 17), budget=20)
-        b = select_search_sites(date(2026, 11, 18), budget=20)
-        self.assertEqual(len(a), 20)
-        self.assertNotEqual(a[12:], b[12:])
-        self.assertEqual(a[:12], b[:12])
-        self.assertEqual({d for _, d, _, _, _ in a[:12]},
-                         {d for _, d, _, _, _ in b[:12]})
+        a = select_search_sites(date(2026, 11, 17), budget=60)
+        b = select_search_sites(date(2026, 11, 18), budget=60)
+        self.assertEqual(len(a), 60)
+        self.assertNotEqual(a[36:], b[36:])
+        self.assertEqual(a[:36], b[:36])
+        self.assertEqual({d for _, d, _, _, _ in a[:36]},
+                         {d for _, d, _, _, _ in b[:36]})
 
     def test_all_rotation_targets_covered_within_eight_days(self):
         from source_catalog import SEARCH_SITES
         days = [date(2026, 11, 17) + timedelta(days=i) for i in range(20)]
         visited = {domain for day in days for _, domain, _, _, _
-                   in select_search_sites(day, budget=20)}
+                   in select_search_sites(day, budget=60)}
         self.assertEqual(visited, {domain for _, domain, _, _, _ in SEARCH_SITES})
 
 

@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import time
+import unicodedata
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
@@ -313,10 +314,11 @@ def select_search_sites(day: date | None = None, budget: int | None = None) -> l
     day = day or date.today()
     if budget is None:
         try:
-            budget = int(os.getenv('INDEX_MAX_QUERIES', '20'))
+            budget = int(os.getenv('INDEX_MAX_QUERIES', '60'))
         except ValueError:
-            budget = 20
-    budget = max(0, min(30, budget))
+            budget = 60
+    # 36 sites quotidiens (12 portails + 24 maisons) + une part tournante.
+    budget = max(0, min(80, budget))
     always = [s for s in SEARCH_SITES if s[4]]
     rotating = [s for s in SEARCH_SITES if not s[4]]
     if budget <= len(always):
@@ -327,17 +329,45 @@ def select_search_sites(day: date | None = None, budget: int | None = None) -> l
     return always + chosen
 
 
-# V6 : des requetes volontairement simples, une par site, avec coupure rapide
-# lorsque le moteur public est indisponible (au lieu de 30 erreurs identiques).
+# V7 : mots-cles SANS guillemets. Avec guillemets, le moteur exigeait l'expression
+# exacte et renvoyait 0 resultat sur 30 sites. On garde une requete par site
+# (pas de OR) et on fait tourner les intitules d'un jour a l'autre.
 LIGHT_TERMS = {
-    'fr': ['"directeur supply chain"', '"directeur industriel"', '"directeur production"'],
-    'en': ['"operations director"', '"head of supply chain"', '"manufacturing director"'],
-    'it': ['"direttore produzione"', '"direttore operations"', '"direttore supply chain"'],
+    'fr': ['directeur supply chain', 'directeur industriel', 'directeur production',
+           'directeur des operations', 'directeur logistique', 'responsable supply chain'],
+    'en': ['operations director', 'head of supply chain', 'manufacturing director',
+           'supply chain director', 'head of operations', 'logistics director'],
+    'it': ['direttore produzione', 'direttore operations', 'direttore supply chain',
+           'direttore logistica', 'responsabile supply chain', 'direttore industriale'],
 }
+
+# Plateformes ATS qui hebergent plusieurs employeurs : on garde site:domaine.
+_ATS_HOSTS = ('greenhouse.io', 'lever.co', 'ashbyhq.com', 'smartrecruiters.com',
+              'myworkdayjobs.com', 'teamtailor.com', 'recruitee.com')
+_GROUP_SUFFIX = re.compile(r'\s+(group|groupe)$', re.I)
+
+
+def _fold(text: str) -> str:
+    """Minuscules sans accents : 'Hermès' et 'Hermes' deviennent identiques."""
+    text = unicodedata.normalize('NFKD', str(text or ''))
+    return ''.join(c for c in text if not unicodedata.combining(c)).lower()
+
+
+def is_open_brand_search(source: str, domain: str) -> bool:
+    """Maison de luxe : recherche ouverte sur son nom, toutes plateformes."""
+    return source == 'Sites Maisons de Luxe' and not any(h in domain for h in _ATS_HOSTS)
+
+
+def build_index_query(name: str, domain: str, source: str, term: str) -> str:
+    if is_open_brand_search(source, domain):
+        brand = _GROUP_SUFFIX.sub('', name).strip()
+        # Ex. : "Hermes" directeur supply chain  -> offres Hermes sur tous les jobboards
+        return f'"{brand}" {term}'
+    return f'site:{domain} {term}'
 
 
 def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
-                       ddgs_factory=None, sleep_seconds: float = 0.7,
+                       ddgs_factory=None, sleep_seconds: float = 1.0,
                        stats: dict | None = None, max_consecutive_errors: int = 3) -> list[dict]:
     """Index gratuit: statuts 'vide' et 'erreur' distincts, arret si moteur bloque.
 
@@ -361,8 +391,11 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
             for index, (name, domain, source, language, _) in enumerate(sites):
                 label = f'Index / {name}'
                 terms = LIGHT_TERMS[language]
-                term = terms[(day.toordinal() // 7 + sum(map(ord, domain))) % len(terms)]
-                query = f'site:{domain} {term}'
+                # Intitule different chaque jour pour un meme site (6 intitules par langue).
+                term = terms[(day.toordinal() + sum(map(ord, domain))) % len(terms)]
+                query = build_index_query(name, domain, source, term)
+                open_brand = is_open_brand_search(source, domain)
+                brand_key = _fold(_GROUP_SUFFIX.sub('', name))
                 try:
                     hits = list(engine.text(query, max_results=12) or [])
                     consecutive_errors = 0
@@ -372,7 +405,12 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
                         if not url:
                             continue
                         host = (urlsplit(url).hostname or '').lower()
-                        if not (host == domain or host.endswith('.' + domain)):
+                        if open_brand:
+                            # Tout site accepte, mais la maison doit etre citee.
+                            texte = _fold(f"{hit.get('title', '')} {hit.get('body', '')}")
+                            if brand_key not in texte:
+                                continue
+                        elif not (host == domain or host.endswith('.' + domain)):
                             continue
                         brutes += 1
                         if url in seen:

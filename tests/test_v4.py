@@ -36,7 +36,7 @@ class V4Sources(unittest.TestCase):
         self.assertEqual(counts['index_targets'], len(SEARCH_SITES))
         self.assertGreaterEqual(counts['index_targets'], 100)
         self.assertGreaterEqual(counts['news_targets'], 15)
-        self.assertEqual(counts['priority_daily'], 12)
+        self.assertEqual(counts['priority_daily'], 36)
         self.assertEqual(len({site[1] for site in SEARCH_SITES}), len(SEARCH_SITES))
         self.assertTrue(any(x[1] == 'ceruleanjobs.ch' for x in SEARCH_SITES))
         self.assertTrue(any(x[1] == 'luxurytalents.com' for x in SEARCH_SITES))
@@ -45,8 +45,8 @@ class V4Sources(unittest.TestCase):
     def test_rotation_covers_whole_catalog_over_time(self):
         seen = set()
         for offset in range(20):
-            chosen = select_search_sites(date(2026, 11, 17) + timedelta(days=offset), budget=20)
-            self.assertEqual(len(chosen), 20)
+            chosen = select_search_sites(date(2026, 11, 17) + timedelta(days=offset), budget=60)
+            self.assertEqual(len(chosen), 60)
             seen.update(site[1] for site in chosen)
         self.assertEqual(len(seen), len(SEARCH_SITES))
 
