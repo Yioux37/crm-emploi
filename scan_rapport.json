@@ -5,15 +5,15 @@
   "par_source": {
     "Workday publics": 0,
     "ATS publics configures": 2,
-    "Index gratuit": 0
+    "Index gratuit": 27
   },
-  "annonces_brutes": 2,
-  "resultats_sources": 133,
-  "annonces_retenues": 2,
-  "annonces_nouvelles": 0,
-  "total_historique": 9,
+  "annonces_brutes": 29,
+  "resultats_sources": 537,
+  "annonces_retenues": 29,
+  "annonces_nouvelles": 27,
+  "total_historique": 36,
   "sources_en_erreur": 16,
-  "sources_repondant": 36,
+  "sources_repondant": 66,
   "etat_sources": {
     "LinkedIn direct": {
       "brutes": 0,
@@ -67,7 +67,7 @@
       "brutes": 0,
       "retenues": 0,
       "etat": "erreur",
-      "detail": "HTTP 422"
+      "detail": "HTTP 429"
     },
     "Workday / TAG Heuer": {
       "brutes": 0,
@@ -154,158 +154,308 @@
       "etat": "vide"
     },
     "Index / FashionJobs France": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / FashionJobs Suisse": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+      "brutes": 7,
+      "retenues": 1,
+      "etat": "ok"
     },
     "Index / FashionJobs Italie": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / APEC": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Jobs.ch": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Jobup Suisse": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Cadremploi": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Welcome to the Jungle": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / HelloWork": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Indeed France (index public)": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Indeed Suisse (index public)": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Indeed Italie (index public)": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / FashionUnited Careers": {
-      "brutes": 0,
+    "Index / LVMH": {
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / Meteojob France": {
-      "brutes": 0,
+    "Index / Kering": {
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / Monster France": {
-      "brutes": 0,
+    "Index / Richemont": {
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / Jobijoba France": {
-      "brutes": 0,
+    "Index / Swatch Group": {
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / Jobrapido France": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+    "Index / Hermes": {
+      "brutes": 7,
+      "retenues": 3,
+      "etat": "ok"
     },
-    "Index / Jooble France": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+    "Index / Chanel": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
     },
-    "Index / Figaro Emploi": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+    "Index / Rolex": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
     },
-    "Index / Optioncarriere France": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+    "Index / Patek Philippe": {
+      "brutes": 7,
+      "retenues": 3,
+      "etat": "ok"
     },
-    "Index / Talent.com France": {
-      "brutes": 0,
+    "Index / Audemars Piguet": {
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / Glassdoor France": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+    "Index / Breitling": {
+      "brutes": 7,
+      "retenues": 1,
+      "etat": "ok"
     },
-    "Index / Leboncoin Emploi": {
-      "brutes": 0,
-      "retenues": 0,
-      "etat": "vide"
+    "Index / Cartier": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
     },
-    "Index / Experteer France": {
-      "brutes": 0,
+    "Index / Prada Group": {
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
-    "Index / Job-Room Suisse": {
-      "brutes": 0,
+    "Index / Moncler Group": {
+      "brutes": 7,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "Index / Gucci": {
+      "brutes": 7,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "Index / Louis Vuitton": {
+      "brutes": 6,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "Index / Dior": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
+    },
+    "Index / Chopard": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
+    },
+    "Index / TAG Heuer": {
+      "brutes": 7,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "Index / Loro Piana": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
+    },
+    "Index / Zegna Group": {
+      "brutes": 8,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
+    },
+    "Index / Longines": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Bulgari": {
+      "brutes": 5,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Armani": {
+      "brutes": 7,
+      "retenues": 1,
+      "etat": "ok"
+    },
+    "Index / Valentino": {
+      "brutes": 7,
+      "retenues": 2,
+      "etat": "ok"
     },
     "Index / Jobwinner Suisse": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Jobtic Suisse": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Jobeo Suisse": {
-      "brutes": 0,
+      "brutes": 7,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "ok"
     },
     "Index / Careerjet Suisse": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Optioncarriere Suisse": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Jobagent Suisse": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Emploi Romand": {
       "brutes": 0,
       "retenues": 0,
       "etat": "vide"
     },
-    "Index / Optioncarriere Suisse": {
+    "Index / Trovolavoro Italie": {
       "brutes": 0,
       "retenues": 0,
       "etat": "vide"
+    },
+    "Index / Cliclavoro Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Jooble Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Jobrapido Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Experteer Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Glassdoor Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Adecco Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Gi Group Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Manpower Italie": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Adecco France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Randstad France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Manpower France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Expectra France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Adecco Suisse": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / EURES Europe": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Michael Page France": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
+    },
+    "Index / Michael Page Suisse": {
+      "brutes": 7,
+      "retenues": 0,
+      "etat": "ok"
     }
   },
   "avertissement": "Des sources ont echoue. Les anciennes offres restent conservees.",
-  "signaux_detectes": 0,
+  "signaux_detectes": 1,
   "signaux_total": 2,
   "signaux_nouveaux": 0
 }
