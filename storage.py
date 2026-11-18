@@ -30,6 +30,18 @@ STATUSES = [
     "Entretien 1", "Entretien final / Shortlist", "Refuse / Sans suite", "Ecarte"
 ]
 PRIORITIES = ["Haute", "Moyenne", "Veille"]
+MANUAL_SOURCES = ["Approche directe / Réseau", "LinkedIn (Post recruteur)",
+                  "LinkedIn (Offres)", "Chasseur de têtes"]
+
+
+def manual_source(link: str, chosen: str = "") -> str:
+    """Devine l'origine d'un lien colle : post LinkedIn, offre LinkedIn ou reseau."""
+    l = str(link or "").lower()
+    if "linkedin.com/posts/" in l or "linkedin.com/feed/update/" in l:
+        return "LinkedIn (Post recruteur)"
+    if "linkedin.com/jobs/view/" in l or "linkedin.com/comm/jobs/view/" in l:
+        return "LinkedIn (Offres)"
+    return chosen if chosen in MANUAL_SOURCES else "Approche directe / Réseau"
 STATUSES_LEGACY = {
     "🆕 À analyser": "A analyser", "🎯 À postuler": "A postuler",
     "✉️ Candidature envoyée": "Candidature envoyee",
@@ -337,10 +349,12 @@ class CRMStore:
         }
 
     def add_manual(self, row: dict) -> bool:
+        """Ajout a la main (reseau, chasseur, ou lien LinkedIn colle)."""
         mapped = _row_values({
             "Titre": row.get("title", ""), "Entreprise": row.get("company", ""),
             "Secteur": row.get("sector", ""), "Pays": row.get("country", ""),
-            "Source": "Approche directe / Réseau", "Lien": row.get("link", ""),
+            "Source": manual_source(row.get("link", ""), row.get("source", "")),
+            "Lien": row.get("link", ""),
             "Niveau estimé": "Direction fonctionnelle",
             "Date de détection": date.today().isoformat(),
             "Statut": row.get("status", "A postuler"),

@@ -21,6 +21,10 @@ jobs:
       # Sans cette ligne, le secret GitHub n'est jamais transmis au script :
       # le scan retombe sur DDGS, bloque depuis les IP GitHub Actions.
       BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+      # Alertes emploi LinkedIn lues dans Gmail (lecture seule). Facultatif :
+      # sans ces secrets, la source est simplement marquee "desactive".
+      IMAP_USER: ${{ secrets.IMAP_USER }}
+      IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4

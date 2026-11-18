@@ -20,6 +20,11 @@ SEARCH_SITES = [
     ('Cadremploi', 'cadremploi.fr', 'Portails cadres', 'fr', True),
     ('Welcome to the Jungle', 'welcometothejungle.com', 'Portails cadres', 'fr', True),
     ('HelloWork', 'hellowork.com', 'Portails cadres', 'fr', True),
+    # LinkedIn : uniquement les fiches d'offre PUBLIQUES deja indexees par le moteur
+    # (/jobs/view/). Aucun compte, aucun profil, aucun appel a LinkedIn lui-meme.
+    ('LinkedIn Jobs France (index public)', 'fr.linkedin.com', 'LinkedIn (Offres)', 'fr', True),
+    ('LinkedIn Jobs Suisse (index public)', 'ch.linkedin.com', 'LinkedIn (Offres)', 'fr', True),
+    ('LinkedIn Jobs Italie (index public)', 'it.linkedin.com', 'LinkedIn (Offres)', 'it', True),
     ('France Travail (index public)', 'francetravail.fr', 'Portails cadres', 'fr', False),
     ('JobScout24', 'jobscout24.ch', 'Portails cadres', 'en', False),
     ('Jobwatch Horlogerie', 'jobwatch.ch', 'Portails sp\u00e9cialis\u00e9s', 'fr', False),

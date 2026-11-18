@@ -317,7 +317,7 @@ def select_search_sites(day: date | None = None, budget: int | None = None) -> l
             budget = int(os.getenv('INDEX_MAX_QUERIES', '60'))
         except ValueError:
             budget = 60
-    # 36 sites quotidiens (12 portails + 24 maisons) + une part tournante.
+    # 39 sites quotidiens (12 portails + 3 LinkedIn Jobs + 24 maisons) + une part tournante.
     budget = max(0, min(80, budget))
     always = [s for s in SEARCH_SITES if s[4]]
     rotating = [s for s in SEARCH_SITES if not s[4]]
@@ -381,6 +381,9 @@ def build_index_query(name: str, domain: str, source: str, term: str) -> str:
         brand = _GROUP_SUFFIX.sub('', name).strip()
         # Ex. : "Hermes" directeur supply chain  -> offres Hermes sur tous les jobboards
         return f'"{brand}" {term}'
+    if domain.endswith('linkedin.com'):
+        # Restreint aux fiches d'offre : evite de remonter des profils de personnes.
+        return f'site:{domain}/jobs/view {term}'
     return f'site:{domain} {term}'
 
 

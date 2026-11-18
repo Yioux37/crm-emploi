@@ -658,6 +658,24 @@ def fetch_portails_specialises():
     return retained
 
 
+def fetch_alertes_linkedin():
+    """Offres envoyees par LinkedIn dans les alertes e-mail (lecture seule IMAP)."""
+    from linkedin_alerts import fetch_linkedin_alerts
+    statistiques = {}
+    raw = fetch_linkedin_alerts(stats=statistiques)
+    retained = []
+    for item in raw:
+        # Meme filtre metier / luxe / pays que les autres sources.
+        normalized = normaliser_source_plus(item)
+        if normalized:
+            retained.append(normalized)
+            for stat in statistiques.values():
+                stat['retenues'] += 1
+    EXTRA_SOURCE_STATS.update(statistiques)
+    print(f"[Alertes LinkedIn] {len(raw)} offres lues, {len(retained)} retenues")
+    return retained
+
+
 # ==============================================================================
 # 6. SAUVEGARDE, PURGE & PRÉSERVATION DES DONNÉES CRM
 # ==============================================================================
@@ -684,6 +702,7 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
         ('Workday publics', fetch_portails_directs),
         ('ATS publics configures', fetch_ats_complementaires),
         ('Index gratuit', fetch_portails_specialises),
+        ('Alertes LinkedIn', fetch_alertes_linkedin),
     ):
         try:
             rows = provider()

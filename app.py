@@ -20,7 +20,7 @@ from scoring import DEFAULT_PREFERENCES, calculate_score
 from source_catalog import SEARCH_SITES, NEWS_SITES, MANUAL_OR_RESTRICTED, catalog_totals
 from sources_plus import read_sources_config
 from market_signals import signal_guidance
-from storage import CRMStore, ConcurrentEditError, PRIORITIES, STATUSES
+from storage import CRMStore, ConcurrentEditError, MANUAL_SOURCES, PRIORITIES, STATUSES
 
 ROOT = Path(__file__).resolve().parent
 PAGES = ["Accueil", "Guide simple", "Opportunités", "Signaux marché", "Relances", "Sources surveillées", "Statistiques", "Préférences"]
@@ -428,7 +428,9 @@ elif page == "Opportunités":
                 for event in events:
                     st.markdown(f"**{event['when_at'][:16].replace('T', ' ')} UTC** — {event['action']}")
 
-    with st.expander("➕ Ajouter une opportunité réseau / chasseur de têtes"):
+    with st.expander("➕ Ajouter une opportunité (réseau, chasseur, post ou offre LinkedIn)"):
+        st.caption("Vu un post « je recrute » ou une offre sur LinkedIn ? Colle son lien : "
+                   "l'origine est détectée automatiquement et une relance peut être programmée.")
         with st.form("add_manual", clear_on_submit=True):
             a, b = st.columns(2)
             company = a.text_input("Maison / Entreprise *")
@@ -439,7 +441,8 @@ elif page == "Opportunités":
             priority = e.selectbox("Priorité", PRIORITIES, index=1)
             status = st.selectbox("Statut initial", STATUSES, index=1)
             contact = st.text_input("Contact / Chasseur")
-            url = st.text_input("Lien vers l'offre (facultatif)")
+            url = st.text_input("Lien vers l'offre ou le post LinkedIn (facultatif)")
+            origin = st.selectbox("Origine (si pas de lien LinkedIn)", MANUAL_SOURCES)
             next_action = st.text_input("Prochaine action (AAAA-MM-JJ, facultatif)")
             notes = st.text_area("Notes")
             if st.form_submit_button("Ajouter au CRM"):
@@ -454,6 +457,7 @@ elif page == "Opportunités":
                         added = store.add_manual({
                             "title": title, "company": company, "sector": sector, "country": country,
                             "priority": priority, "status": status, "contact": contact, "link": url,
+                            "source": origin,
                             "next_action": next_action, "notes": notes, "last_action": today,
                         })
                         st.session_state["notice"] = "Opportunité créée." if added else "Cette opportunité existe déjà."

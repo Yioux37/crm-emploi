@@ -36,7 +36,7 @@ class V4Sources(unittest.TestCase):
         self.assertEqual(counts['index_targets'], len(SEARCH_SITES))
         self.assertGreaterEqual(counts['index_targets'], 100)
         self.assertGreaterEqual(counts['news_targets'], 15)
-        self.assertEqual(counts['priority_daily'], 36)
+        self.assertEqual(counts['priority_daily'], 39)
         self.assertEqual(len({site[1] for site in SEARCH_SITES}), len(SEARCH_SITES))
         self.assertTrue(any(x[1] == 'ceruleanjobs.ch' for x in SEARCH_SITES))
         self.assertTrue(any(x[1] == 'luxurytalents.com' for x in SEARCH_SITES))

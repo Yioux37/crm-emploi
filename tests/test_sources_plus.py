@@ -125,7 +125,7 @@ class PublicATSTests(unittest.TestCase):
                       'it.indeed.com', 'jobs.ch', 'jobup.ch'}
         daily = {domain for _, domain, _, _, priority in SEARCH_SITES if priority}
         self.assertTrue(essentials.issubset(daily))
-        self.assertEqual(catalog_totals()['priority_daily'], 36)
+        self.assertEqual(catalog_totals()['priority_daily'], 39)
 
     def test_all_luxury_houses_checked_daily(self):
         from source_catalog import SEARCH_SITES
@@ -178,10 +178,10 @@ class PublicATSTests(unittest.TestCase):
         a = select_search_sites(date(2026, 11, 17), budget=60)
         b = select_search_sites(date(2026, 11, 18), budget=60)
         self.assertEqual(len(a), 60)
-        self.assertNotEqual(a[36:], b[36:])
-        self.assertEqual(a[:36], b[:36])
-        self.assertEqual({d for _, d, _, _, _ in a[:36]},
-                         {d for _, d, _, _, _ in b[:36]})
+        self.assertNotEqual(a[39:], b[39:])
+        self.assertEqual(a[:39], b[:39])
+        self.assertEqual({d for _, d, _, _, _ in a[:39]},
+                         {d for _, d, _, _, _ in b[:39]})
 
     def test_all_rotation_targets_covered_within_eight_days(self):
         from source_catalog import SEARCH_SITES
