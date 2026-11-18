@@ -31,7 +31,7 @@ IDENTIFIER = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,90}$')
 
 # Sites classes par type. La rotation limite les quotas du moteur web :
 # les sites non prioritaires alternent chaque jour plutot qu'etre tous interroges.
-from source_catalog import SEARCH_SITES
+from source_catalog import NEWS_SITES, SEARCH_SITES
 
 SEARCH_TERMS = {
     'fr': [
@@ -358,6 +358,24 @@ def is_open_brand_search(source: str, domain: str) -> bool:
     return source == 'Sites Maisons de Luxe' and not any(h in domain for h in _ATS_HOSTS)
 
 
+# Pages qui ne sont JAMAIS des offres : profils de personnes, reseaux sociaux,
+# encyclopedies et articles de presse. Un profil LinkedIn est une donnee
+# personnelle : il ne doit ni entrer dans le CRM ni etre publie dans le depot.
+_NEWS_HOSTS = tuple(domain for _, domain in NEWS_SITES)
+_NON_JOB_HOSTS = ('facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'youtube.com',
+                  'tiktok.com', 'wikipedia.org', 'pinterest.com') + _NEWS_HOSTS
+
+
+def looks_like_job_page(url: str) -> bool:
+    parts = urlsplit(url)
+    host = (parts.hostname or '').lower()
+    path = (parts.path or '').lower()
+    if host == 'linkedin.com' or host.endswith('.linkedin.com'):
+        # Seules les fiches d'offre publiques sont acceptees (pas /in/, /posts/, /company/).
+        return path.startswith('/jobs/view/')
+    return not any(host == h or host.endswith('.' + h) for h in _NON_JOB_HOSTS)
+
+
 def build_index_query(name: str, domain: str, source: str, term: str) -> str:
     if is_open_brand_search(source, domain):
         brand = _GROUP_SUFFIX.sub('', name).strip()
@@ -402,7 +420,7 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
                     brutes = 0
                     for hit in hits:
                         url = _safe_url(hit.get('href') or hit.get('url'))
-                        if not url:
+                        if not url or not looks_like_job_page(url):
                             continue
                         host = (urlsplit(url).hostname or '').lower()
                         if open_brand:

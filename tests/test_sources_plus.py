@@ -157,6 +157,23 @@ class PublicATSTests(unittest.TestCase):
         self.assertEqual([r['url'] for r in res], ['https://fr.fashionjobs.com/jobs/456'])
         self.assertNotIn('site:', ddgs.queries[0])
 
+    def test_people_profiles_and_news_are_never_offers(self):
+        from sources_plus import looks_like_job_page
+        self.assertFalse(looks_like_job_page('https://fr.linkedin.com/in/jean-dupont-123'))
+        self.assertFalse(looks_like_job_page('https://www.linkedin.com/posts/abc'))
+        self.assertFalse(looks_like_job_page('https://it.fashionnetwork.com/news/x'))
+        self.assertTrue(looks_like_job_page('https://ch.linkedin.com/jobs/view/directeur-supply-chain-1'))
+        self.assertTrue(looks_like_job_page('https://fr.fashionjobs.com/emploi/hermes/123'))
+        site = [('Hermes', 'hermes.com', 'Sites Maisons de Luxe', 'fr', True)]
+        ddgs = FakeDDGS([
+            {'title': 'Jean Dupont - Directeur industriel chez Hermès', 'body': 'France',
+             'href': 'https://fr.linkedin.com/in/jean-dupont-123'},
+        ])
+        with patch('sources_plus.select_search_sites', return_value=site):
+            res = fetch_indexed_jobs(date(2026, 11, 17), budget=1,
+                                     ddgs_factory=lambda: ddgs, sleep_seconds=0)
+        self.assertEqual(res, [])
+
     def test_budget_rotates_web_sources(self):
         a = select_search_sites(date(2026, 11, 17), budget=60)
         b = select_search_sites(date(2026, 11, 18), budget=60)
