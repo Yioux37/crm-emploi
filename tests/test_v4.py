@@ -88,10 +88,12 @@ class V4Sources(unittest.TestCase):
             self.assertTrue(title)
             self.assertTrue('verifier' in action.lower() or 'confirmer' in action.lower())
 
-    def test_father_guide_and_source_page_exist(self):
+    def test_guide_and_sources_still_reachable(self):
+        # Architecture V11 : le guide est dans Réglages, les sources dans Coulisses.
         app_code = (Path(__file__).resolve().parents[1] / 'app.py').read_text()
-        self.assertIn('elif page == "Guide simple":', app_code)
-        self.assertIn('elif page == "Sources surveill', app_code)
+        self.assertIn('elif page == "Réglages":', app_code)
+        self.assertIn('elif page == "Coulisses":', app_code)
+        self.assertIn('guide rapide', app_code.lower())
         self.assertIn('aucun poste ouvert', app_code.lower())
 
 

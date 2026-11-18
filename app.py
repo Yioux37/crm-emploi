@@ -20,10 +20,11 @@ from scoring import DEFAULT_PREFERENCES, calculate_score
 from source_catalog import SEARCH_SITES, NEWS_SITES, MANUAL_OR_RESTRICTED, catalog_totals
 from sources_plus import read_sources_config
 from market_signals import signal_guidance
-from storage import CRMStore, ConcurrentEditError, MANUAL_SOURCES, PRIORITIES, STATUSES
+from storage import (CRMStore, ConcurrentEditError, CONTACT_KINDS, MANUAL_SOURCES,
+                     PRIORITIES, STATUSES, TARGET_STATUSES)
 
 ROOT = Path(__file__).resolve().parent
-PAGES = ["Accueil", "Guide simple", "Opportunités", "Signaux marché", "Relances", "Sources surveillées", "Statistiques", "Préférences"]
+PAGES = ["Tableau de bord", "Pipeline", "Relances", "Signaux marché", "Coulisses", "Réglages"]
 
 st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="◆", layout="wide")
 st.markdown("""
@@ -175,7 +176,7 @@ today = date.today().isoformat()
 
 def go_to_offer(offer_id: str):
     st.session_state["chosen_offer_id"] = offer_id
-    st.session_state["nav_target"] = "Opportunités"
+    st.session_state["nav_target"] = "Pipeline"
     st.rerun()
 
 
@@ -325,17 +326,375 @@ def inline_offer_buttons(offers_subset: pd.DataFrame, prefix: str, limit: int = 
                 go_to_offer(r["id"])
 
 
-page = st.session_state.get("current_page", "Accueil")
+# ============================================================================
+#  Vues et éditeurs du Pipeline (définis avant le routage ; ils utilisent les
+#  variables globales store, df, visible, prefs, today, alerts ci-dessus).
+# ============================================================================
 
-if page == "Accueil":
-    with st.container(border=True):
-        st.markdown("**Pour commencer : 3 gestes suffisent**")
-        st.write("1. Regarder les meilleures offres ci-dessous.  "
-                 "2. Ouvrir une fiche et noter sa démarche.  "
-                 "3. Consulter les relances à faire.")
-        if st.button("Ouvrir le guide simple", key="home_guide"):
-            st.session_state["nav_target"] = "Guide simple"
+FUNNEL = ["A analyser", "A postuler", "Candidature envoyee",
+          "Reseau / Approche directe", "Entretien 1", "Entretien final / Shortlist"]
+
+
+def offers_table_view(rows):
+    """Vue Table : toutes les colonnes, statut et priorité éditables en ligne."""
+    editor_data = rows.set_index("id")[["title", "company", "country", "score", "status",
+                                        "priority", "next_action", "link"]].rename(columns={
+        "title": "Poste", "company": "Maison", "country": "Pays", "score": "Score",
+        "status": "Statut", "priority": "Priorité", "next_action": "Prochaine action", "link": "Lien"})
+    edited = st.data_editor(
+        editor_data, key="pipeline_table", hide_index=True, width="stretch",
+        height=min(640, max(245, 46 * (len(editor_data) + 1))),
+        column_config={
+            "Statut": st.column_config.SelectboxColumn("Statut", options=STATUSES, required=True),
+            "Priorité": st.column_config.SelectboxColumn("Priorité", options=PRIORITIES, required=True),
+            "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
+            "Lien": st.column_config.LinkColumn("Annonce", display_text="Ouvrir")},
+        disabled=["Poste", "Maison", "Pays", "Score", "Prochaine action", "Lien"])
+    a, b = st.columns([1, 2])
+    with a:
+        if st.button("Enregistrer les modifications", type="primary", key="save_pipeline_table"):
+            changed = 0
+            try:
+                for offer_id in editor_data.index:
+                    delta = {}
+                    for col, field in (("Statut", "status"), ("Priorité", "priority")):
+                        if edited.loc[offer_id, col] != editor_data.loc[offer_id, col]:
+                            delta[field] = edited.loc[offer_id, col]
+                    if delta:
+                        old = df[df["id"] == offer_id].iloc[0]
+                        changed += int(store.update_offer(offer_id, delta, expected_updated_at=old["updated_at"]))
+                st.session_state["notice"] = f"{changed} fiche(s) mise(s) à jour."
+                st.rerun()
+            except (ConcurrentEditError, ValueError) as exc:
+                st.error(str(exc))
+    with b:
+        export_cols = ["title", "company", "sector", "country", "source", "link", "level",
+                       "detected_on", "score", "status", "priority", "contact", "last_action",
+                       "next_action", "notes", "link_status"]
+        st.download_button("Exporter la sélection (CSV)",
+                           data=rows[export_cols].to_csv(index=False).encode("utf-8-sig"),
+                           file_name=f"candidatures_{today}.csv", mime="text/csv")
+
+
+def offers_board_view(rows):
+    """Vue Board (kanban) : une colonne par étape, cartes déplaçables par menu."""
+    st.caption("Fais avancer une carte avec le menu « Déplacer vers ». Les statuts clôturés ne sont pas affichés ici.")
+    columns = st.columns(len(FUNNEL))
+    for col, status in zip(columns, FUNNEL):
+        subset = rows[rows["status"] == status]
+        with col:
+            st.markdown(f"<div style='font-size:.68rem;letter-spacing:1px;text-transform:uppercase;"
+                        f"color:#6E7A72;padding-bottom:6px'>{status} · {len(subset)}</div>",
+                        unsafe_allow_html=True)
+            for _, r in subset.head(25).iterrows():
+                with st.container(border=True):
+                    st.markdown(f"**{r['title'][:42]}**")
+                    st.caption(f"{r['company']} · {r['country']} · {r['score']}/100")
+                    moved = st.selectbox("Déplacer vers", STATUSES, index=STATUSES.index(status),
+                                         key=f"board_{r['id']}", label_visibility="collapsed")
+                    if moved != status:
+                        try:
+                            store.update_offer(r["id"], {"status": moved}, expected_updated_at=r["updated_at"])
+                            st.rerun()
+                        except (ConcurrentEditError, ValueError) as exc:
+                            st.error(str(exc))
+
+
+def offers_grouped_view(rows):
+    """Vue Groupée : la base repliée par statut, pays, maison ou priorité."""
+    field_label = st.selectbox("Regrouper par", ["Statut", "Pays", "Maison", "Priorité"], key="group_by")
+    field = {"Statut": "status", "Pays": "country", "Maison": "company", "Priorité": "priority"}[field_label]
+    for value, grp in rows.groupby(field):
+        st.markdown(f"**{value or '—'}** · {len(grp)}")
+        short_table(grp)
+
+
+def offer_detail_and_add():
+    """Fiche de candidature détaillée + ajout manuel (réseau, chasseur, lien LinkedIn)."""
+    st.divider()
+    st.subheader("Fiche de candidature")
+    ids = visible["id"].tolist()
+    if ids:
+        labels = {r["id"]: offer_label(r) for r in visible.to_dict("records")}
+        preselected = st.session_state.get("chosen_offer_id")
+        idx = ids.index(preselected) if preselected in ids else 0
+        chosen = st.selectbox("Sélectionne une opportunité", ids, index=idx,
+                              format_func=lambda x: labels.get(x, x), key="fiche_sel")
+        st.session_state["chosen_offer_id"] = chosen
+        current = store.offer(chosen)
+        with st.container(border=True):
+            dl, dr = st.columns([3, 1])
+            with dl:
+                st.markdown(f"### {current['title']}")
+                st.caption(f"{current['company']} · {current['country']} · {current['sector']}")
+            with dr:
+                score, reasons = calculate_score(current, prefs)
+                st.metric("Compatibilité", f"{score}/100")
+            with st.expander("Comprendre le score", expanded=False):
+                st.write(" · ".join(reasons))
+                st.caption("Score heuristique personnalisable, pas une probabilité de recrutement.")
+            offer_links = store.links_for(chosen)
+            if offer_links:
+                st.markdown("**Annonces et sources**")
+                for alternate in offer_links:
+                    st.markdown(f"- [{alternate['source']}]({alternate['url']})")
+            if current["link"].startswith(("https://", "http://")):
+                x, y = st.columns([1, 3])
+                with x:
+                    if st.button("Vérifier le lien", key=f"check_{chosen}"):
+                        with st.spinner("Vérification du lien…"):
+                            link_state = check_link(current["link"])
+                            store.record_link_check(chosen, link_state)
+                        st.session_state["notice"] = f"Lien : {link_state}. Un blocage d'accès n'est pas une annonce expirée."
+                        st.rerun()
+                with y:
+                    st.caption(f"État du lien : {current['link_status']}" +
+                               (f" · Vérifié le {current['link_checked_at'][:10]}" if current['link_checked_at'] else ""))
+            with st.form(f"edit_{chosen}"):
+                c1, c2, c3 = st.columns([2, 1, 1])
+                f_status = c1.selectbox("Statut", STATUSES, index=STATUSES.index(current["status"]))
+                f_priority = c2.selectbox("Priorité", PRIORITIES, index=PRIORITIES.index(current["priority"]))
+                f_contact = c3.text_input("Contact / Chasseur", value=current["contact"])
+                d1, d2 = st.columns(2)
+                f_last = d1.text_input("Dernière action (AAAA-MM-JJ)", value=current["last_action"], placeholder="2026-11-17")
+                f_next = d2.text_input("Prochaine action (AAAA-MM-JJ)", value=current["next_action"], placeholder="2026-11-24")
+                f_notes = st.text_area("Notes et prochaines étapes", value=current["notes"], height=130)
+                submitted = st.form_submit_button("Enregistrer la fiche", type="primary")
+            if submitted:
+                try:
+                    store.update_offer(chosen, {"status": f_status, "priority": f_priority, "contact": f_contact,
+                                                "last_action": f_last, "next_action": f_next,
+                                                "notes": f_notes}, expected_updated_at=current["updated_at"])
+                    st.session_state["notice"] = "Fiche enregistrée. Historique mis à jour."
+                    st.rerun()
+                except (ValueError, ConcurrentEditError) as exc:
+                    st.error(str(exc))
+            with st.expander("Historique des actions"):
+                for event in store.timeline(chosen):
+                    st.markdown(f"**{event['when_at'][:16].replace('T', ' ')} UTC** — {event['action']}")
+
+    with st.expander("Ajouter une opportunité (réseau, chasseur, post ou offre LinkedIn)"):
+        st.caption("Vu un post « je recrute » ou une offre sur LinkedIn ? Colle son lien : "
+                   "l'origine est détectée automatiquement.")
+        with st.form("add_manual", clear_on_submit=True):
+            a, b = st.columns(2)
+            m_company = a.text_input("Maison / Entreprise *")
+            m_title = b.text_input("Intitulé du poste *")
+            c, d, e = st.columns(3)
+            m_country = c.selectbox("Pays", ["France", "Suisse", "Italie"])
+            m_sector = d.selectbox("Secteur", ["Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"])
+            m_priority = e.selectbox("Priorité", PRIORITIES, index=1)
+            m_status = st.selectbox("Statut initial", STATUSES, index=1)
+            m_contact = st.text_input("Contact / Chasseur")
+            m_url = st.text_input("Lien vers l'offre ou le post LinkedIn (facultatif)")
+            m_origin = st.selectbox("Origine (si pas de lien LinkedIn)", MANUAL_SOURCES)
+            m_next = st.text_input("Prochaine action (AAAA-MM-JJ, facultatif)")
+            m_notes = st.text_area("Notes")
+            if st.form_submit_button("Ajouter au CRM"):
+                if not m_title.strip() or not m_company.strip():
+                    st.error("Le poste et l'entreprise sont requis.")
+                elif m_url and not canonical_url(m_url):
+                    st.error("Le lien doit être une URL http(s) valide ou rester vide.")
+                else:
+                    try:
+                        if m_next:
+                            date.fromisoformat(m_next)
+                        added = store.add_manual({"title": m_title, "company": m_company, "sector": m_sector,
+                                                  "country": m_country, "priority": m_priority, "status": m_status,
+                                                  "contact": m_contact, "link": m_url, "source": m_origin,
+                                                  "next_action": m_next, "notes": m_notes, "last_action": today})
+                        st.session_state["notice"] = "Opportunité créée." if added else "Cette opportunité existe déjà."
+                        st.rerun()
+                    except ValueError:
+                        st.error("Date incorrecte, utilise le format AAAA-MM-JJ.")
+
+
+def pipeline_offers_tab():
+    if visible.empty:
+        st.info("Aucune offre ne correspond aux filtres. Ajuste-les dans la barre latérale.")
+    else:
+        view = st.radio("Vue", ["Table", "Board", "Groupé"], horizontal=True,
+                        key="offers_view", label_visibility="collapsed")
+        if view == "Table":
+            offers_table_view(visible)
+        elif view == "Board":
+            offers_board_view(visible[~visible["is_closed"]])
+        else:
+            offers_grouped_view(visible)
+    offer_detail_and_add()
+
+
+def reseau_tab():
+    st.caption("Chasseurs, DRH et contacts réseau : le moteur d'une recherche de dirigeant. "
+               "Une date de prochaine relance les fait remonter dans l'onglet Relances.")
+    cdf = store.list_contacts()
+    due = cdf[(cdf["next_contact"] != "") & (cdf["next_contact"] <= today)] if not cdf.empty else cdf
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Contacts", len(cdf))
+    m2.metric("À relancer", len(due))
+    m3.metric("Chasseurs", int((cdf["kind"] == "Chasseur de têtes").sum()) if not cdf.empty else 0)
+    if not cdf.empty:
+        order = cdf.copy()
+        order["_k"] = order["next_contact"].replace("", "9999-99-99")
+        view = order.sort_values("_k")[["name", "kind", "company", "role", "last_contact", "next_contact"]].rename(
+            columns={"name": "Nom", "kind": "Type", "company": "Maison", "role": "Fonction",
+                     "last_contact": "Dernier contact", "next_contact": "Prochaine relance"})
+        st.dataframe(view, hide_index=True, width="stretch")
+    st.markdown("#### Ajouter ou modifier un contact")
+    ids = [""] + (cdf["id"].tolist() if not cdf.empty else [])
+    labels = {"": "— Nouveau contact —"}
+    if not cdf.empty:
+        labels.update({r["id"]: f"{r['name']} · {r['company']}" for r in cdf.to_dict("records")})
+    sel = st.selectbox("Fiche", ids, format_func=lambda x: labels.get(x, x), key="contact_sel")
+    cur = cdf[cdf["id"] == sel].iloc[0].to_dict() if sel else {}
+    with st.form("contact_form"):
+        a, b = st.columns(2)
+        name = a.text_input("Nom *", value=cur.get("name", ""))
+        kind = b.selectbox("Type", CONTACT_KINDS,
+                           index=CONTACT_KINDS.index(cur["kind"]) if cur.get("kind") in CONTACT_KINDS else 3)
+        c, d = st.columns(2)
+        company = c.text_input("Maison / Cabinet", value=cur.get("company", ""))
+        role = d.text_input("Fonction", value=cur.get("role", ""))
+        e, f = st.columns(2)
+        email = e.text_input("Email", value=cur.get("email", ""))
+        phone = f.text_input("Téléphone", value=cur.get("phone", ""))
+        g, h = st.columns(2)
+        last_c = g.text_input("Dernier contact (AAAA-MM-JJ)", value=cur.get("last_contact", ""))
+        next_c = h.text_input("Prochaine relance (AAAA-MM-JJ)", value=cur.get("next_contact", ""))
+        notes = st.text_area("Notes", value=cur.get("notes", ""), height=110)
+        s1, s2 = st.columns(2)
+        save = s1.form_submit_button("Enregistrer", type="primary")
+        remove = s2.form_submit_button("Supprimer") if sel else False
+    if save:
+        try:
+            payload = {"name": name, "kind": kind, "company": company, "role": role, "email": email,
+                       "phone": phone, "last_contact": last_c, "next_contact": next_c, "notes": notes}
+            if sel:
+                store.update_contact(sel, payload)
+                st.session_state["notice"] = "Contact mis à jour."
+            else:
+                store.add_contact(payload)
+                st.session_state["notice"] = "Contact ajouté."
             st.rerun()
+        except (ValueError, KeyError) as exc:
+            st.error(str(exc))
+    if remove:
+        store.delete_contact(sel)
+        st.session_state["notice"] = "Contact supprimé."
+        st.rerun()
+
+
+def cibles_tab():
+    st.caption("Les maisons que tu vises, même sans offre ouverte. "
+               "Quand le radar en détecte une, tu sais déjà pourquoi elle compte.")
+    tdf = store.list_targets()
+    m1, m2 = st.columns(2)
+    m1.metric("Sociétés suivies", len(tdf))
+    m2.metric("En discussion", int((tdf["status"] == "En discussion").sum()) if not tdf.empty else 0)
+    if not tdf.empty:
+        view = tdf[["name", "country", "sector", "priority", "status"]].rename(
+            columns={"name": "Société", "country": "Pays", "sector": "Secteur",
+                     "priority": "Priorité", "status": "Statut"})
+        st.dataframe(view, hide_index=True, width="stretch")
+    st.markdown("#### Ajouter ou modifier une société")
+    ids = [""] + (tdf["id"].tolist() if not tdf.empty else [])
+    labels = {"": "— Nouvelle société —"}
+    if not tdf.empty:
+        labels.update({r["id"]: r["name"] for r in tdf.to_dict("records")})
+    sel = st.selectbox("Fiche", ids, format_func=lambda x: labels.get(x, x), key="target_sel")
+    cur = tdf[tdf["id"] == sel].iloc[0].to_dict() if sel else {}
+    pays_opts = ["", "France", "Suisse", "Italie"]
+    with st.form("target_form"):
+        a, b = st.columns(2)
+        name = a.text_input("Société *", value=cur.get("name", ""))
+        country = b.selectbox("Pays", pays_opts,
+                              index=pays_opts.index(cur["country"]) if cur.get("country") in pays_opts else 0)
+        c, d = st.columns(2)
+        sector = c.text_input("Secteur", value=cur.get("sector", ""))
+        priority = d.selectbox("Priorité", PRIORITIES,
+                               index=PRIORITIES.index(cur["priority"]) if cur.get("priority") in PRIORITIES else 1)
+        status = st.selectbox("Statut", TARGET_STATUSES,
+                              index=TARGET_STATUSES.index(cur["status"]) if cur.get("status") in TARGET_STATUSES else 0)
+        notes = st.text_area("Notes", value=cur.get("notes", ""), height=110)
+        s1, s2 = st.columns(2)
+        save = s1.form_submit_button("Enregistrer", type="primary")
+        remove = s2.form_submit_button("Supprimer") if sel else False
+    if save:
+        try:
+            payload = {"name": name, "country": country, "sector": sector, "priority": priority,
+                       "status": status, "notes": notes}
+            if sel:
+                store.update_target(sel, payload)
+                st.session_state["notice"] = "Société mise à jour."
+            else:
+                store.add_target(payload)
+                st.session_state["notice"] = "Société ajoutée."
+            st.rerun()
+        except (ValueError, KeyError) as exc:
+            st.error(str(exc))
+    if remove:
+        store.delete_target(sel)
+        st.session_state["notice"] = "Société supprimée."
+        st.rerun()
+
+
+def entretiens_tab():
+    st.caption("Une fiche de préparation par entretien : recherche sur la maison, "
+               "questions à poser, points clés. Pour ne pas repartir de zéro à chaque rendez-vous.")
+    pdf = store.list_prep()
+    upcoming = pdf[(pdf["interview_date"] != "") & (pdf["interview_date"] >= today)] if not pdf.empty else pdf
+    m1, m2 = st.columns(2)
+    m1.metric("Préparations", len(pdf))
+    m2.metric("Entretiens à venir", len(upcoming))
+    if not pdf.empty:
+        view = pdf[["company", "role", "interview_date"]].rename(
+            columns={"company": "Maison", "role": "Poste", "interview_date": "Date"}).sort_values("Date")
+        st.dataframe(view, hide_index=True, width="stretch")
+    st.markdown("#### Préparer un entretien")
+    ids = [""] + (pdf["id"].tolist() if not pdf.empty else [])
+    labels = {"": "— Nouvelle préparation —"}
+    if not pdf.empty:
+        labels.update({r["id"]: f"{r['company']} · {r['interview_date'] or 'sans date'}"
+                       for r in pdf.to_dict("records")})
+    sel = st.selectbox("Fiche", ids, format_func=lambda x: labels.get(x, x), key="prep_sel")
+    cur = pdf[pdf["id"] == sel].iloc[0].to_dict() if sel else {}
+    with st.form("prep_form"):
+        a, b, c = st.columns([2, 2, 1])
+        company = a.text_input("Maison *", value=cur.get("company", ""))
+        role = b.text_input("Poste visé", value=cur.get("role", ""))
+        idate = c.text_input("Date (AAAA-MM-JJ)", value=cur.get("interview_date", ""))
+        research = st.text_area("Recherche sur la maison (sites, actualités, dirigeants)",
+                                value=cur.get("research", ""), height=120)
+        questions = st.text_area("Questions à poser", value=cur.get("questions", ""), height=120)
+        notes = st.text_area("Points clés / notes", value=cur.get("notes", ""), height=100)
+        s1, s2 = st.columns(2)
+        save = s1.form_submit_button("Enregistrer", type="primary")
+        remove = s2.form_submit_button("Supprimer") if sel else False
+    if save:
+        try:
+            payload = {"company": company, "role": role, "interview_date": idate,
+                       "research": research, "questions": questions, "notes": notes}
+            if sel:
+                store.update_prep(sel, payload)
+                st.session_state["notice"] = "Préparation mise à jour."
+            else:
+                store.add_prep(payload)
+                st.session_state["notice"] = "Préparation créée."
+            st.rerun()
+        except (ValueError, KeyError) as exc:
+            st.error(str(exc))
+    if remove:
+        store.delete_prep(sel)
+        st.session_state["notice"] = "Préparation supprimée."
+        st.rerun()
+
+
+# ============================================================================
+#  Routage des pages
+# ============================================================================
+page = st.session_state.get("current_page", "Tableau de bord")
+
+if page == "Tableau de bord":
     new_cutoff = (date.today() - timedelta(days=7)).isoformat()
     count_new = int((df["detected_on"] >= new_cutoff).sum()) if not df.empty else 0
     count_high = len(alerts["high"])
@@ -376,200 +735,63 @@ if page == "Accueil":
                            f"{report.get('annonces_nouvelles', 0)} nouvelle(s) offre(s)")
                 if report.get('statut') in ('degrade', 'partiel'):
                     st.warning("Certaines sources n'ont pas répondu au dernier scan. "
-                               "Les annonces déjà trouvées sont conservées. "
-                               "Voir Sources surveillées → Santé du radar.")
+                               "Les annonces déjà trouvées sont conservées. Voir Coulisses → Santé du radar.")
             except (ValueError, OSError):
                 pass
 
-elif page == "Guide simple":
-    st.subheader("Comment utiliser mon radar d'emploi")
-    st.write("Ce site est ton **carnet de recherche d'emploi personnel**. "
-             "Il découvre des annonces, repère des mouvements d'entreprises "
-             "et t'aide à ne pas oublier une candidature. "
-             "Tu n'as jamais besoin d'ouvrir GitHub pour t'en servir.")
-    with st.container(border=True):
-        st.markdown("#### Chaque matin (5 minutes)")
-        st.markdown("**1. Ouvre Accueil.** Regarde les postes avec le meilleur score. "
-                    "Le score mesure la ressemblance avec tes critères, **pas tes chances d'être recruté**.\n\n"
-                    "**2. Ouvre Opportunités.** Clique sur une offre qui t'intéresse, "
-                    "puis sur son lien pour lire l'annonce originale. Vérifie qu'elle est toujours ouverte.\n\n"
-                    "**3. Note ce que tu fais.** Dans la fiche, indique la priorité, "
-                    "le statut, une note et la **date de prochaine action**.\n\n"
-                    "**4. Ouvre Relances.** C'est la liste des personnes et offres à recontacter aujourd'hui.")
-    left, right = st.columns(2)
-    with left:
-        st.markdown("#### Quand une offre t'intéresse")
-        st.write("Lis le poste → vérifie le site de l'entreprise → "
-                 "envoie ta candidature si tu le souhaites → note 'Candidature envoyée' "
-                 "→ programme une relance.")
-        if st.button("Voir les opportunités", key="guide_go_offers"):
-            st.session_state["nav_target"] = "Opportunités"
-            st.rerun()
-    with right:
-        st.markdown("#### Quand une entreprise bouge")
-        st.write("Va dans **Signaux marché** : ouverture d'un atelier, investissement, "
-                 "acquisition ou nouvelle direction. Ce sont des **idées d'approche réseau**, "
-                 "pas des offres d'emploi. Lis l'article avant d'agir.")
-        if st.button("Voir les signaux marché", key="guide_go_signals"):
-            st.session_state["nav_target"] = "Signaux marché"
-            st.rerun()
-    with st.expander("Les mots à connaître"):
-        st.write("**Offre** = poste publié. **Source** = site où l'offre a été trouvée. "
-                 "**Score /100** = pertinence estimée selon tes préférences. "
-                 "**Signal marché** = actualité à examiner pour une prise de contact. "
-                 "**Relance** = date de ton prochain message ou appel.")
-    st.info("Le radar recherche automatiquement via GitHub Actions selon sa programmation, "
-            "mais toutes les sources ne donnent pas de résultats chaque jour. "
-            "Aucune candidature n'est envoyée automatiquement.")
-    if store.is_local:
-        st.warning("Sur Streamlit Cloud, il faut configurer DATABASE_URL vers PostgreSQL "
-                   "avant de conserver des contacts, notes ou relances importantes.")
+elif page == "Pipeline":
+    st.subheader("Pipeline")
+    st.caption("Ta base de candidatures, à la manière d'un tableau Notion. "
+               "Les onglets regroupent offres, réseau, sociétés cibles et préparation d'entretiens.")
+    tab_offres, tab_reseau, tab_cibles, tab_prep = st.tabs(
+        ["Offres", "Réseau", "Sociétés cibles", "Entretiens"])
+    with tab_offres:
+        pipeline_offers_tab()
+    with tab_reseau:
+        reseau_tab()
+    with tab_cibles:
+        cibles_tab()
+    with tab_prep:
+        entretiens_tab()
 
-elif page == "Opportunités":
-    st.subheader("Explorer et mettre à jour les opportunités")
-    st.caption("Les statuts et priorités sont éditables dans le tableau. Les autres informations se modifient dans la fiche.")
-    if visible.empty:
-        st.info("Aucune offre ne correspond aux filtres sélectionnés.")
-    else:
-        editor_data = visible.set_index("id")[["title", "company", "country", "score", "status",
-                                               "priority", "next_action", "link"]].rename(columns={
-            "title": "Poste", "company": "Maison", "country": "Pays", "score": "Score",
-            "status": "Statut", "priority": "Priorité", "next_action": "Prochaine action", "link": "Lien"
-        })
-        edited = st.data_editor(
-            editor_data, key="main_table_editor", hide_index=True,
-            width="stretch", height=min(700, max(245, 46 * (len(editor_data) + 1))),
-            column_config={
-                "Statut": st.column_config.SelectboxColumn("Statut", options=STATUSES, required=True),
-                "Priorité": st.column_config.SelectboxColumn("Priorité", options=PRIORITIES, required=True),
-                "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
-                "Lien": st.column_config.LinkColumn("Annonce", display_text="Ouvrir")
-            },
-            disabled=["Poste", "Maison", "Pays", "Score", "Prochaine action", "Lien"],
-        )
-        a, b = st.columns([1, 2])
-        with a:
-            if st.button("Enregistrer les modifications du tableau", type="primary"):
-                changed = 0
-                try:
-                    for offer_id in editor_data.index:
-                        delta = {}
-                        for col, field in (("Statut", "status"), ("Priorité", "priority")):
-                            if edited.loc[offer_id, col] != editor_data.loc[offer_id, col]:
-                                delta[field] = edited.loc[offer_id, col]
-                        if delta:
-                            old = df[df["id"] == offer_id].iloc[0]
-                            changed += int(store.update_offer(offer_id, delta, expected_updated_at=old["updated_at"]))
-                    st.session_state["notice"] = f"{changed} fiche(s) mise(s) à jour."
-                    st.rerun()
-                except (ConcurrentEditError, ValueError) as exc:
-                    st.error(str(exc))
-        with b:
-            export_cols = ["title", "company", "sector", "country", "source", "link", "level",
-                           "detected_on", "score", "status", "priority", "contact", "last_action",
-                           "next_action", "notes", "link_status"]
-            download = visible[export_cols].to_csv(index=False).encode("utf-8-sig")
-            st.download_button("Exporter la sélection (CSV)", data=download,
-                               file_name=f"candidatures_{today}.csv", mime="text/csv")
-
-        st.divider()
-        st.subheader("Fiche de candidature")
-        ids = visible["id"].tolist()
-        labels = {r["id"]: offer_label(r) for r in visible.to_dict("records")}
-        preselected = st.session_state.get("chosen_offer_id")
-        idx = ids.index(preselected) if preselected in ids else 0
-        chosen = st.selectbox("Sélectionne une opportunité", ids, index=idx, format_func=lambda x: labels.get(x, x))
-        st.session_state["chosen_offer_id"] = chosen
-        current = store.offer(chosen)
-        with st.container(border=True):
-            details_l, details_r = st.columns([3, 1])
-            with details_l:
-                st.markdown(f"### {current['title']}")
-                st.caption(f"{current['company']} · {current['country']} · {current['sector']}")
-            with details_r:
-                score, reasons = calculate_score(current, prefs)
-                st.metric("Compatibilité estimée", f"{score}/100")
-            with st.expander("Comprendre le score", expanded=False):
-                st.write(" · ".join(reasons))
-                st.caption("Score heuristique personnalisable, pas une probabilité de recrutement.")
-            links = store.links_for(chosen)
-            if links:
-                st.markdown("**Annonces et sources**")
-                for alternate in links:
-                    st.markdown(f"- [{alternate['source']}]({alternate['url']})")
-            if current["link"].startswith(("https://", "http://")):
-                x, y = st.columns([1, 3])
-                with x:
-                    if st.button("Vérifier le lien", key=f"check_{chosen}"):
-                        with st.spinner("Vérification du lien…"):
-                            status = check_link(current["link"])
-                            store.record_link_check(chosen, status)
-                        st.session_state["notice"] = f"Lien : {status}. Un blocage d'accès n'est pas considéré comme une annonce expirée."
-                        st.rerun()
-                with y:
-                    st.caption(f"État du lien : {current['link_status']}" +
-                               (f" · Vérifié le {current['link_checked_at'][:10]}" if current['link_checked_at'] else ""))
-            with st.form(f"edit_{chosen}"):
-                c1, c2, c3 = st.columns([2, 1, 1])
-                status = c1.selectbox("Statut", STATUSES, index=STATUSES.index(current["status"]))
-                priority = c2.selectbox("Priorité", PRIORITIES, index=PRIORITIES.index(current["priority"]))
-                contact = c3.text_input("Contact / Chasseur", value=current["contact"])
-                d1, d2 = st.columns(2)
-                last_action = d1.text_input("Dernière action (AAAA-MM-JJ)", value=current["last_action"], placeholder="2026-11-17")
-                next_action = d2.text_input("Prochaine action (AAAA-MM-JJ)", value=current["next_action"], placeholder="2026-11-24")
-                notes = st.text_area("Notes et prochaines étapes", value=current["notes"], height=130)
-                submitted = st.form_submit_button("Enregistrer la fiche", type="primary")
-            if submitted:
-                try:
-                    store.update_offer(chosen, {
-                        "status": status, "priority": priority, "contact": contact,
-                        "last_action": last_action, "next_action": next_action, "notes": notes,
-                    }, expected_updated_at=current["updated_at"])
-                    st.session_state["notice"] = "Fiche enregistrée. Historique mis à jour."
-                    st.rerun()
-                except (ValueError, ConcurrentEditError) as exc:
-                    st.error(str(exc))
-            with st.expander("Historique des actions"):
-                events = store.timeline(chosen)
-                for event in events:
-                    st.markdown(f"**{event['when_at'][:16].replace('T', ' ')} UTC** — {event['action']}")
-
-    with st.expander("Ajouter une opportunité (réseau, chasseur, post ou offre LinkedIn)"):
-        st.caption("Vu un post « je recrute » ou une offre sur LinkedIn ? Colle son lien : "
-                   "l'origine est détectée automatiquement et une relance peut être programmée.")
-        with st.form("add_manual", clear_on_submit=True):
-            a, b = st.columns(2)
-            company = a.text_input("Maison / Entreprise *")
-            title = b.text_input("Intitulé du poste *")
-            c, d, e = st.columns(3)
-            country = c.selectbox("Pays", ["France", "Suisse", "Italie"])
-            sector = d.selectbox("Secteur", ["Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"])
-            priority = e.selectbox("Priorité", PRIORITIES, index=1)
-            status = st.selectbox("Statut initial", STATUSES, index=1)
-            contact = st.text_input("Contact / Chasseur")
-            url = st.text_input("Lien vers l'offre ou le post LinkedIn (facultatif)")
-            origin = st.selectbox("Origine (si pas de lien LinkedIn)", MANUAL_SOURCES)
-            next_action = st.text_input("Prochaine action (AAAA-MM-JJ, facultatif)")
-            notes = st.text_area("Notes")
-            if st.form_submit_button("Ajouter au CRM"):
-                if not title.strip() or not company.strip():
-                    st.error("Le poste et l'entreprise sont requis.")
-                elif url and not canonical_url(url):
-                    st.error("Le lien doit être une URL http(s) valide ou rester vide.")
-                else:
-                    try:
-                        if next_action:
-                            date.fromisoformat(next_action)
-                        added = store.add_manual({
-                            "title": title, "company": company, "sector": sector, "country": country,
-                            "priority": priority, "status": status, "contact": contact, "link": url,
-                            "source": origin,
-                            "next_action": next_action, "notes": notes, "last_action": today,
-                        })
-                        st.session_state["notice"] = "Opportunité créée." if added else "Cette opportunité existe déjà."
-                        st.rerun()
-                    except ValueError:
-                        st.error("Date incorrecte, utilise le format AAAA-MM-JJ.")
+elif page == "Relances":
+    st.subheader("Relances et prochaines actions")
+    tab_off, tab_res = st.tabs(["Offres", "Réseau"])
+    with tab_off:
+        due = df[(df["next_action"] != "") & (df["next_action"] <= today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
+        upcoming = df[(df["next_action"] > today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
+        p1, p2 = st.columns(2)
+        p1.metric("À traiter aujourd'hui ou en retard", len(due))
+        p2.metric("Programmées à venir", len(upcoming))
+        st.markdown("#### À traiter")
+        inline_offer_buttons(due, "due", limit=25)
+        if due.empty:
+            st.success("Aucune relance d'offre en retard.")
+        st.markdown("#### Planifiées")
+        short_table(upcoming)
+    with tab_res:
+        cdf = store.list_contacts()
+        if cdf.empty:
+            st.info("Aucun contact. Ajoute tes chasseurs et ton réseau dans Pipeline → Réseau.")
+        else:
+            cdue = cdf[(cdf["next_contact"] != "") & (cdf["next_contact"] <= today)].sort_values("next_contact")
+            clater = cdf[cdf["next_contact"] > today].sort_values("next_contact")
+            st.markdown("#### Contacts à relancer")
+            if cdue.empty:
+                st.success("Aucune relance réseau en retard.")
+            else:
+                for _, r in cdue.iterrows():
+                    st.markdown(f"**{r['next_contact']}** — {r['name']} · {r['company']} · {r['kind']}")
+                    if r["notes"]:
+                        st.caption(r["notes"][:120])
+            st.markdown("#### Relances planifiées")
+            if clater.empty:
+                st.caption("Aucune relance réseau programmée.")
+            else:
+                st.dataframe(clater[["next_contact", "name", "company", "kind"]].rename(
+                    columns={"next_contact": "Date", "name": "Nom", "company": "Maison", "kind": "Type"}),
+                    hide_index=True, width="stretch")
+    st.caption("Après une relance, mets à jour la date dans la fiche (offre ou contact).")
 
 elif page == "Signaux marché":
     st.subheader("Radar d'entreprises : signaux de recrutement potentiels")
@@ -587,7 +809,7 @@ elif page == "Signaux marché":
             if not set(expected).issubset(signals.columns):
                 st.warning("Le fichier de signaux n'a pas les colonnes attendues.")
             elif signals.empty:
-                st.info("Aucun signal enregistré. Le scan GitHub suivant alimentera cet onglet.")
+                st.info("Aucun signal enregistré. Le prochain scan alimentera cet onglet.")
             else:
                 signals = signals.sort_values("Date de détection", ascending=False)
                 cols = st.columns(3)
@@ -621,27 +843,13 @@ elif page == "Signaux marché":
         except (OSError, ValueError, pd.errors.ParserError) as exc:
             st.warning(f"Impossible de lire les signaux : {exc}")
     else:
-        st.info("La première collecte de presse créera `signaux_marche.csv` dans le dépôt GitHub.")
+        st.info("La première collecte de presse créera `signaux_marche.csv` dans le dépôt.")
     st.markdown("**Actions conseillées** : repérer la maison, identifier le besoin métier possible, "
                 "puis préparer une approche personnalisée (sans collecte automatisée de contacts privés).")
 
-elif page == "Relances":
-    st.subheader("Relances et prochaines actions")
-    due = df[(df["next_action"] != "") & (df["next_action"] <= today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
-    upcoming = df[(df["next_action"] > today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
-    p1, p2 = st.columns(2)
-    p1.metric("À traiter aujourd'hui ou en retard", len(due))
-    p2.metric("Programmées à venir", len(upcoming))
-    st.markdown("#### À traiter")
-    inline_offer_buttons(due, "due", limit=25)
-    if due.empty:
-        st.success("Aucune relance en retard.")
-    st.markdown("#### Planifiées")
-    short_table(upcoming)
-    st.caption("Après une relance, mets à jour la dernière action et fixe une nouvelle date sur la fiche.")
-
-elif page == "Sources surveillées":
-    st.subheader("Sources surveillées : où cherche le radar ?")
+elif page == "Coulisses":
+    st.subheader("Coulisses du radar")
+    st.caption("Où le radar cherche, ce qui a répondu, et le bilan chiffré de ta recherche.")
     totals = catalog_totals()
     c1, c2, c3 = st.columns(3)
     c1.metric("Sites recherchés", totals["index_targets"])
@@ -651,8 +859,9 @@ elif page == "Sources surveillées":
             "Pour la plupart des sites, le radar cherche seulement des annonces "
             "déjà publiques dans un moteur de recherche. "
             "Les autres sites tournent entre les jours pour limiter les requêtes.")
-    tab_jobs, tab_news, tab_direct, tab_health, tab_limits = st.tabs([
-        "Emploi et chasse", "Presse et tendances", "Flux directs", "Santé du radar", "Limites et accès"])
+    tab_jobs, tab_news, tab_direct, tab_health, tab_stats, tab_limits = st.tabs([
+        "Emploi et chasse", "Presse et tendances", "Flux directs",
+        "Santé du radar", "Statistiques", "Limites et accès"])
     with tab_jobs:
         sites = pd.DataFrame([
             {"Site": name, "Famille": kind, "Lien": "https://" + domain,
@@ -674,8 +883,8 @@ elif page == "Sources surveillées":
         st.dataframe(news, hide_index=True, width="stretch",
                      column_config={"Lien": st.column_config.LinkColumn("Site public")})
     with tab_direct:
-        st.write("Les flux publics (Lever, Ashby, Greenhouse, SmartRecruiters, "
-                 "Workable, Recruitee, RSS) sont plus précis quand une maison dispose d'un identifiant "
+        st.write("Les flux publics (Lever, Ashby, Greenhouse, SmartRecruiters, SuccessFactors, "
+                 "Oracle, RSS) sont plus précis quand une maison dispose d'un identifiant "
                  "confirmé. Ils ne nécessitent ni connexion candidat ni scraping des pages.")
         try:
             cfg = read_sources_config()
@@ -683,18 +892,21 @@ elif page == "Sources surveillées":
             for provider, key in [("Lever", "lever"), ("Ashby", "ashby"),
                                   ("Greenhouse", "greenhouse"),
                                   ("SmartRecruiters", "smartrecruiters"),
+                                  ("SuccessFactors", "successfactors"),
+                                  ("Oracle Recruiting", "oracle"),
                                   ("Workable", "workable"),
                                   ("Recruitee", "recruitee"),
                                   ("RSS/Atom", "rss")]:
                 for board in cfg.get(key, []):
                     rows.append({"Fournisseur": provider, "Maison": board.get("company", ""),
                                  "Configuration": board.get("site") or board.get("board") or
-                                                   board.get("company_id") or board.get("account") or
-                                                   board.get("url")})
+                                                   board.get("company_id") or board.get("host") or
+                                                   board.get("account") or board.get("url") or
+                                                   board.get("index")})
             st.dataframe(pd.DataFrame(rows, columns=["Fournisseur", "Maison", "Configuration"]),
                          hide_index=True, width="stretch")
-            st.caption("Les identifiants de flux doivent être vérifiés à leur source. "
-                       "Les erreurs et les volumes figurent dans Statistiques après un scan.")
+            st.caption("Les identifiants de flux doivent être vérifiés à leur source "
+                       "(script verifier_sources.py).")
         except (OSError, ValueError, TypeError) as exc:
             st.warning("Configuration non disponible : " + str(exc))
     with tab_health:
@@ -703,7 +915,7 @@ elif page == "Sources surveillées":
                  "Un site en erreur n'est pas un site sans emploi.")
         report_file = ROOT / "scan_rapport.json"
         if not report_file.exists():
-            st.info("Aucun rapport disponible : lance le scan depuis GitHub Actions.")
+            st.info("Aucun rapport disponible : lance un scan depuis le Mac.")
         else:
             try:
                 import json
@@ -740,10 +952,32 @@ elif page == "Sources surveillées":
                         table = table[table["État"] == "vide"]
                     st.dataframe(table, hide_index=True, width="stretch")
                     st.caption("Annonces accessibles = résultats techniques de la source. "
-                               "Pertinentes = annonces qui passent nos critères métier, luxe et pays. "
-                               "Un résultat peut déjà exister dans le CRM.")
+                               "Pertinentes = annonces qui passent nos critères métier, luxe et pays.")
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 st.warning("Impossible de lire le rapport du scan : " + str(exc))
+    with tab_stats:
+        if df.empty:
+            st.info("Aucune donnée à analyser.")
+        else:
+            a, b, c = st.columns(3)
+            a.metric("Offres détectées et réseau", len(df))
+            b.metric("Candidatures envoyées / en entretien", int(df["status"].isin(
+                ["Candidature envoyee", "Entretien 1", "Entretien final / Shortlist"]).sum()))
+            c.metric("Entretiens actuellement actifs", int(df["status"].isin(
+                ["Entretien 1", "Entretien final / Shortlist"]).sum()))
+            l, r = st.columns(2)
+            with l:
+                st.markdown("**Par statut**")
+                st.bar_chart(df["status"].value_counts().rename_axis("Statut"), horizontal=True)
+                st.markdown("**Par source principale**")
+                st.bar_chart(df["source"].value_counts().rename_axis("Source"), horizontal=True)
+            with r:
+                st.markdown("**Par pays**")
+                st.bar_chart(df["country"].value_counts().rename_axis("Pays"))
+                st.markdown("**Offres détectées par mois**")
+                by_month = df.assign(mois=df["detected_on"].str[:7]).groupby("mois").size().rename("Offres")
+                st.bar_chart(by_month)
+            st.caption("Les totaux par statut représentent l'état actuel des dossiers.")
     with tab_limits:
         for name, why in MANUAL_OR_RESTRICTED:
             st.markdown(f"**{name}** : {why}")
@@ -751,50 +985,18 @@ elif page == "Sources surveillées":
                    "les APIs privées exigent une autorisation, et les pages "
                    "protégées ne sont pas contournées.")
 
-elif page == "Statistiques":
-    st.subheader("Pilotage de la recherche")
-    if df.empty:
-        st.info("Aucune donnée à analyser.")
-    else:
-        a, b, c = st.columns(3)
-        a.metric("Offres détectées et réseau", len(df))
-        b.metric("Candidatures envoyées / en entretien", int(df["status"].isin(
-            ["Candidature envoyee", "Entretien 1", "Entretien final / Shortlist"]).sum()))
-        c.metric("Entretiens actuellement actifs", int(df["status"].isin(
-            ["Entretien 1", "Entretien final / Shortlist"]).sum()))
-        l, r = st.columns(2)
-        with l:
-            st.markdown("**Par statut**")
-            st.bar_chart(df["status"].value_counts().rename_axis("Statut"), horizontal=True)
-            st.markdown("**Par source principale**")
-            st.bar_chart(df["source"].value_counts().rename_axis("Source"), horizontal=True)
-        with r:
-            st.markdown("**Par pays**")
-            st.bar_chart(df["country"].value_counts().rename_axis("Pays"))
-            st.markdown("**Offres détectées par mois**")
-            by_month = df.assign(mois=df["detected_on"].str[:7]).groupby("mois").size().rename("Offres")
-            st.bar_chart(by_month)
-        st.caption("Les totaux par statut représentent l'état actuel des dossiers. "
-                   "Un taux de réponse fiable nécessiterait de tracer chaque candidature envoyée et ses réponses.")
-
-    report_file = ROOT / "scan_rapport.json"
-    if report_file.exists():
-        with st.expander("Diagnostic du dernier scan et des sources"):
-            try:
-                import json
-                report = json.loads(report_file.read_text(encoding="utf-8"))
-                st.caption(f"Dernier scan : {report.get('date_scan', 'inconnue')} — "
-                           f"{report.get('annonces_nouvelles', 0)} nouvelle(s) opportunité(s)")
-                st.json({"Par canal (offres retenues)": report.get("par_source", {}),
-                         "Diagnostic détaillé": report.get("etat_sources", {}),
-                         "Signaux marché": report.get("signaux_total", "non activé")},
-                        expanded=False)
-            except (OSError, ValueError) as exc:
-                st.caption(f"Rapport non disponible : {exc}")
-
-elif page == "Préférences":
-    st.subheader("Profil de pertinence et sécurité")
-    st.markdown("Les scores sont calculés à partir de critères transparents, sans IA externe et sans analyser de CV.")
+elif page == "Réglages":
+    st.subheader("Réglages")
+    with st.expander("Comment utiliser le radar (guide rapide)", expanded=False):
+        st.markdown("**1. Tableau de bord** — les meilleures offres et les actions du jour.\n\n"
+                    "**2. Pipeline** — toutes tes candidatures, ton réseau, tes sociétés cibles "
+                    "et tes préparations d'entretien, en onglets.\n\n"
+                    "**3. Relances** — qui et quoi recontacter aujourd'hui, côté offres et côté réseau.\n\n"
+                    "**4. Signaux marché** — les mouvements d'entreprises à exploiter en approche réseau.\n\n"
+                    "Le score mesure la ressemblance avec tes critères, **pas une probabilité de recrutement**. "
+                    "Aucune candidature n'est jamais envoyée automatiquement.")
+    st.markdown("#### Profil de pertinence")
+    st.caption("Les scores sont calculés à partir de critères transparents, sans IA externe et sans analyser de CV.")
     with st.form("preferences"):
         countries = st.multiselect("Pays prioritaires", ["France", "Suisse", "Italie"],
                                    default=prefs.get("preferred_countries", []))
@@ -815,10 +1017,9 @@ elif page == "Préférences":
             st.session_state["notice"] = "Préférences enregistrées ; scores recalculés."
             st.rerun()
     st.divider()
-    st.markdown("**Données et alertes**")
-    st.write("Les offres publiques sont dans `offres_detectees.csv`. Les contacts et notes sont uniquement en base de données.")
-    st.write("Les alertes de relance sont toujours visibles dans l'accueil et l'onglet Relances. "
-             "Les e-mails quotidiens et hebdomadaires nécessitent une configuration SMTP facultative (voir README).")
+    st.markdown("#### Données et sécurité")
+    st.write("Les offres publiques sont dans `offres_detectees.csv`. Les contacts, notes, "
+             "sociétés cibles et préparations sont uniquement en base de données.")
     st.download_button("Sauvegarde de mes données (CSV)",
                        data=df.drop(columns=["is_closed", "why_score", "score"], errors="ignore")
                        .to_csv(index=False).encode("utf-8-sig"),
