@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "date_scan": "2026-11-17",
+  "date_scan": "2026-11-18",
   "statut": "partiel",
   "par_source": {
     "Workday publics": 0,
@@ -8,12 +8,12 @@
     "Index gratuit": 0
   },
   "annonces_brutes": 2,
-  "resultats_sources": 144,
+  "resultats_sources": 133,
   "annonces_retenues": 2,
   "annonces_nouvelles": 0,
   "total_historique": 9,
-  "sources_en_erreur": 16,
-  "sources_repondant": 36,
+  "sources_en_erreur": 46,
+  "sources_repondant": 6,
   "etat_sources": {
     "LinkedIn direct": {
       "brutes": 0,
@@ -139,7 +139,7 @@
       "etat": "vide"
     },
     "SmartRecruiters / Audemars Piguet": {
-      "brutes": 80,
+      "brutes": 79,
       "retenues": 2,
       "etat": "ok"
     },
@@ -156,156 +156,186 @@
     "Index / FashionJobs France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "erreur",
+      "detail": "DDGSException"
     },
     "Index / FashionJobs Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "erreur",
+      "detail": "DDGSException"
     },
     "Index / FashionJobs Italie": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "erreur",
+      "detail": "DDGSException"
     },
     "Index / APEC": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Jobs.ch": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Jobup Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Cadremploi": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Welcome to the Jungle": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / HelloWork": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Indeed France (index public)": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Indeed Suisse (index public)": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
     "Index / Indeed Italie (index public)": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Armani": {
+    "Index / FashionUnited Careers": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Valentino": {
+    "Index / Meteojob France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Greenhouse Jobs": {
+    "Index / Monster France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Lever EU": {
+    "Index / Jobijoba France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Lever Global": {
+    "Index / Jobrapido France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Ashby Jobs": {
+    "Index / Jooble France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / SmartRecruiters Jobs": {
-      "brutes": 10,
-      "retenues": 0,
-      "etat": "ok"
-    },
-    "Index / Workday Careers": {
+    "Index / Figaro Emploi": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Teamtailor Careers": {
+    "Index / Optioncarriere France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Recruitee Careers": {
+    "Index / Talent.com France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / France Travail (index public)": {
+    "Index / Glassdoor France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / JobScout24": {
+    "Index / Leboncoin Emploi": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Jobwatch Horlogerie": {
+    "Index / Experteer France": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Cerulean Suisse luxe": {
+    "Index / Job-Room Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / InfoJobs Italie": {
+    "Index / Jobwinner Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Monster Italie": {
+    "Index / Jobtic Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Experteer": {
+    "Index / Jobeo Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     },
-    "Index / Business of Fashion Careers": {
+    "Index / Careerjet Suisse": {
       "brutes": 0,
       "retenues": 0,
-      "etat": "vide"
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
+    },
+    "Index / Optioncarriere Suisse": {
+      "brutes": 0,
+      "retenues": 0,
+      "etat": "non_interroge",
+      "detail": "Moteur indisponible apres erreurs repetees"
     }
   },
   "avertissement": "Des sources ont echoue. Les anciennes offres restent conservees.",
-  "signaux_detectes": 0,
-  "signaux_total": 0,
-  "signaux_nouveaux": 0
+  "signaux_detectes": 2,
+  "signaux_total": 2,
+  "signaux_nouveaux": 2
 }
