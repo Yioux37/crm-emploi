@@ -109,6 +109,57 @@ notifications = Table(
     UniqueConstraint("kind", "item_key", name="uq_notification_kind_item"),
 )
 
+# --- Briques « pilotage actif » : réseau, sociétés cibles, préparation entretien ---
+# Vocabulaires contrôlés, pour des filtres et regroupements fiables côté interface.
+CONTACT_KINDS = ["Chasseur de têtes", "DRH / RH", "Opérationnel / Métier",
+                 "Réseau / Ancien collègue", "Autre"]
+TARGET_STATUSES = ["À approcher", "Contact établi", "En discussion", "En veille", "Écartée"]
+
+# Réseau : chasseurs, DRH, contacts à relancer. Le moteur d'une recherche de cadre.
+contacts = Table(
+    "contacts", metadata,
+    Column("id", String(36), primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("kind", Text, nullable=False, default="Réseau / Ancien collègue"),
+    Column("company", Text, nullable=False, default=""),
+    Column("role", Text, nullable=False, default=""),
+    Column("email", Text, nullable=False, default=""),
+    Column("phone", Text, nullable=False, default=""),
+    Column("country", String(20), nullable=False, default=""),
+    Column("last_contact", String(10), nullable=False, default=""),
+    Column("next_contact", String(10), nullable=False, default=""),
+    Column("notes", Text, nullable=False, default=""),
+    Column("created_at", String(30), nullable=False),
+    Column("updated_at", String(30), nullable=False),
+)
+# Sociétés cibles : maisons visées même sans offre ouverte, suivies dans le temps.
+target_companies = Table(
+    "target_companies", metadata,
+    Column("id", String(36), primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("country", String(20), nullable=False, default=""),
+    Column("sector", Text, nullable=False, default=""),
+    Column("priority", Text, nullable=False, default="Moyenne"),
+    Column("status", Text, nullable=False, default="À approcher"),
+    Column("notes", Text, nullable=False, default=""),
+    Column("created_at", String(30), nullable=False),
+    Column("updated_at", String(30), nullable=False),
+)
+# Préparation entretien : une fiche par rendez-vous, reliée à une offre si besoin.
+interview_prep = Table(
+    "interview_prep", metadata,
+    Column("id", String(36), primary_key=True),
+    Column("company", Text, nullable=False),
+    Column("role", Text, nullable=False, default=""),
+    Column("interview_date", String(10), nullable=False, default=""),
+    Column("offer_id", String(36), nullable=False, default=""),
+    Column("research", Text, nullable=False, default=""),
+    Column("questions", Text, nullable=False, default=""),
+    Column("notes", Text, nullable=False, default=""),
+    Column("created_at", String(30), nullable=False),
+    Column("updated_at", String(30), nullable=False),
+)
+
 
 class ConcurrentEditError(RuntimeError):
     """La fiche a change depuis son affichage."""
@@ -444,6 +495,126 @@ class CRMStore:
                 conn.execute(insert(notifications).values(id=str(uuid.uuid4()), kind=kind,
                                                            item_key=item_key, sent_at=utc_now()))
         self.backup_local()
+
+    # ------------------------------------------------------------------ #
+    #  Réseau, sociétés cibles, préparation entretien                     #
+    #  CRUD générique : une table + un jeu de champs autorisés par entité #
+    # ------------------------------------------------------------------ #
+    def _list(self, table: Table) -> pd.DataFrame:
+        with self.engine.connect() as conn:
+            rows = [dict(r) for r in conn.execute(select(table)).mappings()]
+        return pd.DataFrame(rows, columns=[c.name for c in table.c])
+
+    def _insert_row(self, table: Table, values: dict) -> str:
+        now = utc_now()
+        new_id = str(uuid.uuid4())
+        with self.engine.begin() as conn:
+            conn.execute(insert(table).values(id=new_id, created_at=now, updated_at=now, **values))
+        self.backup_local()
+        return new_id
+
+    def _update_row(self, table: Table, row_id: str, changes: dict) -> bool:
+        clean = {k: _str(v) for k, v in changes.items()}
+        with self.engine.begin() as conn:
+            current = conn.execute(select(table).where(table.c.id == row_id)).mappings().first()
+            if not current:
+                raise KeyError("Élément introuvable")
+            delta = {k: v for k, v in clean.items() if v != current[k]}
+            if not delta:
+                return False
+            conn.execute(update(table).where(table.c.id == row_id).values(**delta, updated_at=utc_now()))
+        self.backup_local()
+        return True
+
+    def _delete_row(self, table: Table, row_id: str) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(delete(table).where(table.c.id == row_id))
+        self.backup_local()
+
+    # Réseau & chasseurs -------------------------------------------------
+    def list_contacts(self) -> pd.DataFrame:
+        return self._list(contacts)
+
+    def add_contact(self, data: dict) -> str:
+        if not _str(data.get("name")):
+            raise ValueError("Le nom du contact est requis.")
+        kind = data.get("kind") if data.get("kind") in CONTACT_KINDS else "Réseau / Ancien collègue"
+        return self._insert_row(contacts, {
+            "name": _str(data.get("name")), "kind": kind, "company": _str(data.get("company")),
+            "role": _str(data.get("role")), "email": _str(data.get("email")),
+            "phone": _str(data.get("phone")), "country": _str(data.get("country")),
+            "last_contact": _iso_date(data.get("last_contact")),
+            "next_contact": _iso_date(data.get("next_contact")),
+            "notes": _str(data.get("notes")),
+        })
+
+    def update_contact(self, contact_id: str, changes: dict) -> bool:
+        allowed = {"name", "kind", "company", "role", "email", "phone", "country",
+                   "last_contact", "next_contact", "notes"}
+        if set(changes) - allowed:
+            raise ValueError("Champs contact non autorisés")
+        if "kind" in changes and changes["kind"] not in CONTACT_KINDS:
+            raise ValueError("Type de contact inconnu")
+        for f in ("last_contact", "next_contact"):
+            if f in changes and _str(changes[f]) and not _iso_date(changes[f]):
+                raise ValueError("Date attendue : AAAA-MM-JJ")
+        return self._update_row(contacts, contact_id, changes)
+
+    def delete_contact(self, contact_id: str) -> None:
+        self._delete_row(contacts, contact_id)
+
+    # Sociétés cibles ----------------------------------------------------
+    def list_targets(self) -> pd.DataFrame:
+        return self._list(target_companies)
+
+    def add_target(self, data: dict) -> str:
+        if not _str(data.get("name")):
+            raise ValueError("Le nom de la société est requis.")
+        status = data.get("status") if data.get("status") in TARGET_STATUSES else "À approcher"
+        priority = data.get("priority") if data.get("priority") in PRIORITIES else "Moyenne"
+        return self._insert_row(target_companies, {
+            "name": _str(data.get("name")), "country": _str(data.get("country")),
+            "sector": _str(data.get("sector")), "priority": priority, "status": status,
+            "notes": _str(data.get("notes")),
+        })
+
+    def update_target(self, target_id: str, changes: dict) -> bool:
+        allowed = {"name", "country", "sector", "priority", "status", "notes"}
+        if set(changes) - allowed:
+            raise ValueError("Champs société non autorisés")
+        if "status" in changes and changes["status"] not in TARGET_STATUSES:
+            raise ValueError("Statut société inconnu")
+        if "priority" in changes and changes["priority"] not in PRIORITIES:
+            raise ValueError("Priorité inconnue")
+        return self._update_row(target_companies, target_id, changes)
+
+    def delete_target(self, target_id: str) -> None:
+        self._delete_row(target_companies, target_id)
+
+    # Préparation entretien ----------------------------------------------
+    def list_prep(self) -> pd.DataFrame:
+        return self._list(interview_prep)
+
+    def add_prep(self, data: dict) -> str:
+        if not _str(data.get("company")):
+            raise ValueError("La maison est requise.")
+        return self._insert_row(interview_prep, {
+            "company": _str(data.get("company")), "role": _str(data.get("role")),
+            "interview_date": _iso_date(data.get("interview_date")),
+            "offer_id": _str(data.get("offer_id")), "research": _str(data.get("research")),
+            "questions": _str(data.get("questions")), "notes": _str(data.get("notes")),
+        })
+
+    def update_prep(self, prep_id: str, changes: dict) -> bool:
+        allowed = {"company", "role", "interview_date", "offer_id", "research", "questions", "notes"}
+        if set(changes) - allowed:
+            raise ValueError("Champs préparation non autorisés")
+        if "interview_date" in changes and _str(changes["interview_date"]) and not _iso_date(changes["interview_date"]):
+            raise ValueError("Date attendue : AAAA-MM-JJ")
+        return self._update_row(interview_prep, prep_id, changes)
+
+    def delete_prep(self, prep_id: str) -> None:
+        self._delete_row(interview_prep, prep_id)
 
     def backup_local(self) -> str | None:
         """Copie SQLite coherente après écriture, dans un dossier non versionné.
