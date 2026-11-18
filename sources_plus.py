@@ -386,6 +386,17 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
                         stats[label] = {'brutes': brutes, 'retenues': 0,
                                         'etat': 'ok' if brutes else 'vide'}
                 except Exception as exc:
+                    # ddgs leve DDGSException("No results found.") quand une requete
+                    # ne renvoie RIEN : ce n'est pas une panne du moteur, juste un site
+                    # sans annonce correspondante. On le note 'vide' sans activer le
+                    # coupe-circuit (sinon 3 sites vides de suite bloquaient 27 sites).
+                    if 'no results found' in str(exc).lower():
+                        consecutive_errors = 0
+                        if stats is not None:
+                            stats[label] = {'brutes': 0, 'retenues': 0, 'etat': 'vide'}
+                        if sleep_seconds:
+                            time.sleep(sleep_seconds)
+                        continue
                     consecutive_errors += 1
                     kind = type(exc).__name__
                     print(f'⚠️ [{label}] Erreur du moteur de recherche : {kind}')
@@ -398,8 +409,7 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
                             for remaining_name, _, _, _, _ in remaining:
                                 stats[f'Index / {remaining_name}'] = {
                                     'brutes': 0, 'retenues': 0, 'etat': 'non_interroge',
-                                    'detail': 'Moteur indisponible apres erreurs repetees '
-                                              '(DDGS bloque : configurer BRAVE_SEARCH_API_KEY)'}
+                                    'detail': 'Moteur indisponible apres erreurs repetees'}
                         print(f'⚠️ Moteur de recherche indisponible : {len(remaining)} sites reportes. '
                               'Les flux ATS continuent normalement.')
                         break

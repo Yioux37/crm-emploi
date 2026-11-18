@@ -57,6 +57,14 @@ class NoHitsDDGS(FailingDDGS):
         return []
 
 
+class RealNoResultsDDGS(FailingDDGS):
+    """Comportement reel de ddgs>=9 : exception quand une requete n'a aucun resultat."""
+    def text(self, query, max_results):
+        from ddgs.exceptions import DDGSException
+        self.calls.append(query)
+        raise DDGSException('No results found.')
+
+
 class V6PublicFeedTests(TestCase):
     def test_workable_public_feed(self):
         session = Session({'jobs': [{
@@ -103,6 +111,14 @@ class V6PublicFeedTests(TestCase):
         fetch_indexed_jobs(day=date(2026, 11, 17), budget=4,
                            ddgs_factory=lambda: engine, sleep_seconds=0, stats=stats)
         self.assertEqual(len(engine.calls), 4)
+        self.assertEqual({s['etat'] for s in stats.values()}, {'vide'})
+
+    def test_ddgs_no_results_exception_does_not_trip_breaker(self):
+        engine = RealNoResultsDDGS()
+        stats = {}
+        fetch_indexed_jobs(day=date(2026, 11, 17), budget=30,
+                           ddgs_factory=lambda: engine, sleep_seconds=0, stats=stats)
+        self.assertEqual(len(engine.calls), 30)
         self.assertEqual({s['etat'] for s in stats.values()}, {'vide'})
 
     def test_failures_preserve_feed_and_make_diagnostic_without_secrets(self):
