@@ -1,7 +1,8 @@
 [theme]
+# Direction « Blanc & Vert anglais » : blanc net, encre, accent vert anglais.
 base = "light"
-primaryColor = "#986C31"
-backgroundColor = "#FCFBF9"
-secondaryBackgroundColor = "#F2F0EC"
-textColor = "#20283B"
+primaryColor = "#1F4D3A"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F9F7"
+textColor = "#15201B"
 font = "sans serif"

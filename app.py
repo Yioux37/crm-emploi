@@ -25,12 +25,83 @@ from storage import CRMStore, ConcurrentEditError, MANUAL_SOURCES, PRIORITIES, S
 ROOT = Path(__file__).resolve().parent
 PAGES = ["Accueil", "Guide simple", "Opportunités", "Signaux marché", "Relances", "Sources surveillées", "Statistiques", "Préférences"]
 
-st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="⌚", layout="wide")
+st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="◆", layout="wide")
 st.markdown("""
 <style>
-.block-container {padding-top: 1.35rem; padding-bottom: 3rem; max-width: 1480px;}
-[data-testid="stMetric"] {border: 1px solid rgba(128,128,128,.18); padding: 16px; border-radius: 14px;}
-[data-testid="stSidebar"] {border-right: 1px solid rgba(128,128,128,.12);}
+/* Typographie : serif éditorial pour les titres, sans lisible pour le corps. */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+
+:root{
+  --ink:#15201B; --sage:#6E7A72; --line:#E4E8E5; --green:#1F4D3A; --green-700:#173A2B;
+  --card:#FBFCFB; --alert:#9A3B34;
+}
+
+html, body, .stApp, [class*="css"]{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+.stApp{ background:#FFFFFF; color:var(--ink); }
+.block-container{ padding-top:2.1rem; padding-bottom:4rem; max-width:1320px; }
+
+/* Titres en serif */
+h1,h2,h3,h4,
+[data-testid="stHeading"] h1,[data-testid="stHeading"] h2,[data-testid="stHeading"] h3{
+  font-family:'Cormorant Garamond',Georgia,serif !important;
+  font-weight:500 !important; letter-spacing:.3px; color:var(--ink);
+}
+h1,[data-testid="stHeading"] h1{ font-size:2.5rem !important; line-height:1.12; }
+h2{ font-size:2rem !important; }
+h3{ font-size:1.55rem !important; }
+
+/* Texte secondaire */
+[data-testid="stCaptionContainer"], small{ color:var(--sage) !important; }
+
+/* Cartes de chiffres */
+[data-testid="stMetric"]{
+  background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px;
+}
+[data-testid="stMetricLabel"] p{
+  text-transform:uppercase; letter-spacing:1.4px; font-size:.68rem !important;
+  color:var(--sage) !important; font-weight:600;
+}
+[data-testid="stMetricValue"]{
+  font-family:'Cormorant Garamond',Georgia,serif; font-weight:500;
+  font-size:2.2rem !important; color:var(--ink);
+}
+
+/* Barre latérale */
+[data-testid="stSidebar"]{ background:#F7F9F7; border-right:1px solid var(--line); }
+[data-testid="stSidebar"] [data-testid="stHeading"] h1{ font-size:1.6rem !important; }
+
+/* Boutons */
+.stButton>button, .stDownloadButton>button, .stFormSubmitButton>button{
+  border-radius:8px; border:1px solid var(--line); font-weight:500; letter-spacing:.2px;
+  transition:all .15s ease;
+}
+.stButton>button:hover, .stDownloadButton>button:hover{ border-color:var(--green); color:var(--green); }
+.stButton>button[kind="primary"], .stFormSubmitButton>button[kind="primary"]{
+  background:var(--green); border-color:var(--green); color:#fff;
+}
+.stButton>button[kind="primary"]:hover, .stFormSubmitButton>button[kind="primary"]:hover{
+  background:var(--green-700); border-color:var(--green-700); color:#fff;
+}
+
+a, a:visited{ color:var(--green); }
+
+/* Onglets : libellés en petites capitales, soulignement vert */
+.stTabs [data-baseweb="tab-list"]{ gap:26px; border-bottom:1px solid var(--line); }
+.stTabs [data-baseweb="tab"]{
+  padding:8px 2px; font-size:.78rem; text-transform:uppercase; letter-spacing:1.3px; color:var(--sage);
+}
+.stTabs [aria-selected="true"]{ color:var(--green) !important; }
+.stTabs [data-baseweb="tab-highlight"]{ background:var(--green); }
+
+/* Conteneurs encadrés et tableaux */
+[data-testid="stVerticalBlockBorderWrapper"]{ border-radius:12px; }
+[data-testid="stDataFrame"]{ border:1px solid var(--line); border-radius:10px; }
+hr{ border-color:var(--line); }
+
+/* Épure : on masque le pied de page Streamlit */
+footer{ visibility:hidden; height:0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -53,7 +124,7 @@ def require_password():
         st.stop()
     if st.session_state.get("authenticated"):
         return
-    st.title("🔐 Espace privé de recherche d'emploi")
+    st.title("Espace privé de recherche d'emploi")
     st.write("Connecte-toi pour accéder aux annonces, contacts et notes de candidature.")
     with st.form("login"):
         entered = st.text_input("Mot de passe", type="password")
@@ -108,10 +179,10 @@ def go_to_offer(offer_id: str):
     st.rerun()
 
 
-st.sidebar.title("⌚ Mon espace carrière")
+st.sidebar.title("Mon espace carrière")
 st.sidebar.caption("Direction Opérations & Supply Chain · Luxe")
 if store.is_local:
-    st.sidebar.caption("💾 SQLite local : pour un hébergement Cloud, configure une base PostgreSQL persistante.")
+    st.sidebar.caption("SQLite local : pour un hébergement Cloud, configure une base PostgreSQL persistante.")
 if "nav_target" in st.session_state:
     st.session_state["current_page"] = st.session_state.pop("nav_target")
 st.sidebar.radio("Navigation", PAGES, key="current_page", label_visibility="collapsed")
@@ -157,7 +228,7 @@ def run_scan_with_progress(timeout_s: int = 900):
     return code, "".join(log)[-5000:]
 
 
-if st.sidebar.button("🔎 Rechercher de nouvelles offres", width="stretch"):
+if st.sidebar.button("Rechercher de nouvelles offres", width="stretch"):
     try:
         code, journal = run_scan_with_progress()
         if code:
@@ -171,7 +242,7 @@ if st.sidebar.button("🔎 Rechercher de nouvelles offres", width="stretch"):
     except subprocess.TimeoutExpired:
         st.sidebar.error("Scan trop long : l'opération a été interrompue, sans suppression d'offre.")
 
-if st.sidebar.button("↻ Actualiser le flux", width="stretch"):
+if st.sidebar.button("Actualiser le flux", width="stretch"):
     try:
         count = store.import_csv(ROOT / "offres_detectees.csv")
         st.session_state["notice"] = f"Flux rechargé : {count} nouvelle(s) offre(s)."
@@ -208,7 +279,7 @@ if not visible.empty:
         mask &= search_match
     visible = visible[mask].sort_values(["score", "detected_on"], ascending=[False, False])
 
-st.title("⌚ CRM Candidatures")
+st.title("CRM Candidatures")
 st.caption("Un espace privé pour repérer les opportunités, préparer les candidatures et ne manquer aucune relance.")
 
 if store.backup_error:
@@ -262,7 +333,7 @@ if page == "Accueil":
         st.write("1. Regarder les meilleures offres ci-dessous.  "
                  "2. Ouvrir une fiche et noter sa démarche.  "
                  "3. Consulter les relances à faire.")
-        if st.button("Guide Ouvrir le guide simple", key="home_guide"):
+        if st.button("Ouvrir le guide simple", key="home_guide"):
             st.session_state["nav_target"] = "Guide simple"
             st.rerun()
     new_cutoff = (date.today() - timedelta(days=7)).isoformat()
@@ -278,23 +349,24 @@ if page == "Accueil":
 
     col_main, col_side = st.columns([1.7, 1], gap="large")
     with col_main:
-        st.subheader("🎯 Opportunités prioritaires")
+        st.subheader("Opportunités prioritaires")
         ranked = visible[~visible["is_closed"]].sort_values(["score", "detected_on"], ascending=False)
         inline_offer_buttons(ranked, "home")
         if ranked.empty:
             st.info("Aucune offre visible. Ajuste les filtres ou lance une recherche.")
     with col_side:
-        st.subheader("📅 Actions à venir")
+        st.subheader("Actions à venir")
         todo = df[(df["next_action"] != "") & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
         if todo.empty:
             st.info("Renseigne une date de prochaine action dans les fiches pour recevoir tes rappels.")
         else:
             for _, r in todo.head(7).iterrows():
                 overdue = r["next_action"] <= today
-                st.markdown(f"{'🔴' if overdue else '🗓️'} **{r['next_action']}** — {r['company']}")
+                tag = "· en retard" if overdue else ""
+                st.markdown(f"**{r['next_action']}** — {r['company']} {tag}")
                 st.caption(r["title"])
         st.divider()
-        st.subheader("📥 Flux récent")
+        st.subheader("Flux récent")
         st.caption(f"{len(df)} opportunité(s) conservée(s) dans le CRM, dont {len(visible)} affichée(s) après filtrage.")
         if (ROOT / "scan_rapport.json").exists():
             import json
@@ -310,7 +382,7 @@ if page == "Accueil":
                 pass
 
 elif page == "Guide simple":
-    st.subheader("Guide Comment utiliser mon radar d'emploi")
+    st.subheader("Comment utiliser mon radar d'emploi")
     st.write("Ce site est ton **carnet de recherche d'emploi personnel**. "
              "Il découvre des annonces, repère des mouvements d'entreprises "
              "et t'aide à ne pas oublier une candidature. "
@@ -341,7 +413,7 @@ elif page == "Guide simple":
         if st.button("Voir les signaux marché", key="guide_go_signals"):
             st.session_state["nav_target"] = "Signaux marché"
             st.rerun()
-    with st.expander("❓ Les mots à connaître"):
+    with st.expander("Les mots à connaître"):
         st.write("**Offre** = poste publié. **Source** = site où l'offre a été trouvée. "
                  "**Score /100** = pertinence estimée selon tes préférences. "
                  "**Signal marché** = actualité à examiner pour une prise de contact. "
@@ -354,7 +426,7 @@ elif page == "Guide simple":
                    "avant de conserver des contacts, notes ou relances importantes.")
 
 elif page == "Opportunités":
-    st.subheader("🎯 Explorer et mettre à jour les opportunités")
+    st.subheader("Explorer et mettre à jour les opportunités")
     st.caption("Les statuts et priorités sont éditables dans le tableau. Les autres informations se modifient dans la fiche.")
     if visible.empty:
         st.info("Aucune offre ne correspond aux filtres sélectionnés.")
@@ -377,7 +449,7 @@ elif page == "Opportunités":
         )
         a, b = st.columns([1, 2])
         with a:
-            if st.button("💾 Enregistrer les modifications du tableau", type="primary"):
+            if st.button("Enregistrer les modifications du tableau", type="primary"):
                 changed = 0
                 try:
                     for offer_id in editor_data.index:
@@ -397,11 +469,11 @@ elif page == "Opportunités":
                            "detected_on", "score", "status", "priority", "contact", "last_action",
                            "next_action", "notes", "link_status"]
             download = visible[export_cols].to_csv(index=False).encode("utf-8-sig")
-            st.download_button("⬇️ Exporter la sélection (CSV)", data=download,
+            st.download_button("Exporter la sélection (CSV)", data=download,
                                file_name=f"candidatures_{today}.csv", mime="text/csv")
 
         st.divider()
-        st.subheader("🗂️ Fiche de candidature")
+        st.subheader("Fiche de candidature")
         ids = visible["id"].tolist()
         labels = {r["id"]: offer_label(r) for r in visible.to_dict("records")}
         preselected = st.session_state.get("chosen_offer_id")
@@ -428,7 +500,7 @@ elif page == "Opportunités":
             if current["link"].startswith(("https://", "http://")):
                 x, y = st.columns([1, 3])
                 with x:
-                    if st.button("🔎 Vérifier le lien", key=f"check_{chosen}"):
+                    if st.button("Vérifier le lien", key=f"check_{chosen}"):
                         with st.spinner("Vérification du lien…"):
                             status = check_link(current["link"])
                             store.record_link_check(chosen, status)
@@ -457,12 +529,12 @@ elif page == "Opportunités":
                     st.rerun()
                 except (ValueError, ConcurrentEditError) as exc:
                     st.error(str(exc))
-            with st.expander("🕒 Historique des actions"):
+            with st.expander("Historique des actions"):
                 events = store.timeline(chosen)
                 for event in events:
                     st.markdown(f"**{event['when_at'][:16].replace('T', ' ')} UTC** — {event['action']}")
 
-    with st.expander("➕ Ajouter une opportunité (réseau, chasseur, post ou offre LinkedIn)"):
+    with st.expander("Ajouter une opportunité (réseau, chasseur, post ou offre LinkedIn)"):
         st.caption("Vu un post « je recrute » ou une offre sur LinkedIn ? Colle son lien : "
                    "l'origine est détectée automatiquement et une relance peut être programmée.")
         with st.form("add_manual", clear_on_submit=True):
@@ -500,7 +572,7 @@ elif page == "Opportunités":
                         st.error("Date incorrecte, utilise le format AAAA-MM-JJ.")
 
 elif page == "Signaux marché":
-    st.subheader("📡 Radar d'entreprises : signaux de recrutement potentiels")
+    st.subheader("Radar d'entreprises : signaux de recrutement potentiels")
     st.write(
         "Les investissements, ouvertures de manufactures, acquisitions et nominations peuvent "
         "justifier une prise de contact ciblée. **Ces articles ne sont pas des offres d'emploi** "
@@ -528,7 +600,7 @@ elif page == "Signaux marché":
                 )
                 st.caption("Date = découverte par le radar, pas date de publication de l'article. "
                            "Vérifier l'information et la date dans la source avant de contacter une entreprise.")
-                with st.expander("Approche Transformer une actualité en prise de contact (facultatif)"):
+                with st.expander("Transformer une actualité en prise de contact (facultatif)"):
                     records = signals.to_dict("records")
                     signal_ix = st.selectbox("Actualité à examiner", range(len(records)),
                         format_func=lambda i: f"{records[i]['Entreprise']} : {records[i]['Actualité'][:90]}",
@@ -554,17 +626,17 @@ elif page == "Signaux marché":
                 "puis préparer une approche personnalisée (sans collecte automatisée de contacts privés).")
 
 elif page == "Relances":
-    st.subheader("📅 Relances et prochaines actions")
+    st.subheader("Relances et prochaines actions")
     due = df[(df["next_action"] != "") & (df["next_action"] <= today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
     upcoming = df[(df["next_action"] > today) & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
     p1, p2 = st.columns(2)
     p1.metric("À traiter aujourd'hui ou en retard", len(due))
     p2.metric("Programmées à venir", len(upcoming))
-    st.markdown("#### 🔴 À traiter")
+    st.markdown("#### À traiter")
     inline_offer_buttons(due, "due", limit=25)
     if due.empty:
         st.success("Aucune relance en retard.")
-    st.markdown("#### 🗓️ Planifiées")
+    st.markdown("#### Planifiées")
     short_table(upcoming)
     st.caption("Après une relance, mets à jour la dernière action et fixe une nouvelle date sur la fiche.")
 
@@ -680,7 +752,7 @@ elif page == "Sources surveillées":
                    "protégées ne sont pas contournées.")
 
 elif page == "Statistiques":
-    st.subheader("📈 Pilotage de la recherche")
+    st.subheader("Pilotage de la recherche")
     if df.empty:
         st.info("Aucune donnée à analyser.")
     else:
@@ -707,7 +779,7 @@ elif page == "Statistiques":
 
     report_file = ROOT / "scan_rapport.json"
     if report_file.exists():
-        with st.expander("🔎 Diagnostic du dernier scan et des sources"):
+        with st.expander("Diagnostic du dernier scan et des sources"):
             try:
                 import json
                 report = json.loads(report_file.read_text(encoding="utf-8"))
@@ -721,7 +793,7 @@ elif page == "Statistiques":
                 st.caption(f"Rapport non disponible : {exc}")
 
 elif page == "Préférences":
-    st.subheader("⚙️ Profil de pertinence et sécurité")
+    st.subheader("Profil de pertinence et sécurité")
     st.markdown("Les scores sont calculés à partir de critères transparents, sans IA externe et sans analyser de CV.")
     with st.form("preferences"):
         countries = st.multiselect("Pays prioritaires", ["France", "Suisse", "Italie"],
@@ -747,10 +819,10 @@ elif page == "Préférences":
     st.write("Les offres publiques sont dans `offres_detectees.csv`. Les contacts et notes sont uniquement en base de données.")
     st.write("Les alertes de relance sont toujours visibles dans l'accueil et l'onglet Relances. "
              "Les e-mails quotidiens et hebdomadaires nécessitent une configuration SMTP facultative (voir README).")
-    st.download_button("⬇️ Sauvegarde de mes données (CSV)",
+    st.download_button("Sauvegarde de mes données (CSV)",
                        data=df.drop(columns=["is_closed", "why_score", "score"], errors="ignore")
                        .to_csv(index=False).encode("utf-8-sig"),
                        file_name=f"sauvegarde_crm_{today}.csv", mime="text/csv")
-    if st.button("🔒 Se déconnecter"):
+    if st.button("Se déconnecter"):
         st.session_state["authenticated"] = False
         st.rerun()
