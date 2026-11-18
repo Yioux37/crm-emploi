@@ -281,93 +281,24 @@ def deduire_source(lien, source_actuelle=""):
 # ==============================================================================
 
 def fetch_linkedin_jobs():
-    """Récupère les offres LinkedIn gratuitement via l'endpoint public jobs-guest."""
-    url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8"
-    }
+    """Offres LinkedIn publiques (page invitee, sans compte). Voir linkedin_guest.py.
 
-    recherches = [
-        ("France", "Directeur Operations Luxe"),
-        ("France", "Directeur Supply Chain Luxe"),
-        ("France", "Directeur Manufacture Horlogerie"),
-        ("France", "Head of Operations Luxury"),
-        ("Switzerland", "Director Operations Luxury Watchmaking"),
-        ("Switzerland", "Directeur Operations Horlogerie"),
-        ("Switzerland", "Head of Supply Chain Watchmaking"),
-        ("Switzerland", "Directeur Manufacture"),
-        ("Italy", "Direttore Operations Lusso"),
-        ("Italy", "Supply Chain Director Luxury Fashion"),
-        ("Italy", "Direttore Produzione Moda Pelletteria")
-    ]
-
-    offres = []
-    liens_vus = set()
-
-    for pays_recherche, mots_cles in recherches:
-        print(f"⏳ [LinkedIn Direct] Scan : {mots_cles} ({pays_recherche})...")
-        params = {
-            "keywords": mots_cles,
-            "location": pays_recherche,
-            "f_TPR": "r2592000",  # 30 derniers jours (r604800 pour 7 jours)
-            "start": 0
-        }
-        try:
-            resp = requests.get(url, params=params, headers=headers, timeout=15)
-            if resp.status_code != 200:
-                print(f"⚠️ LinkedIn a ralenti la requête ({resp.status_code}), pause...")
-                time.sleep(4)
-                continue
-
-            soup = BeautifulSoup(resp.text, "html.parser")
-            cartes = soup.find_all("div", class_="base-card")
-
-            for carte in cartes:
-                titre_el = carte.find("h3", class_="base-search-card__title")
-                ent_el = carte.find("h4", class_="base-search-card__subtitle")
-                loc_el = carte.find("span", class_="job-search-card__location")
-                lien_el = carte.find("a", class_="base-card__full-link")
-
-                if not (titre_el and ent_el and lien_el):
-                    continue
-
-                titre = titre_el.get_text(strip=True)
-                entreprise = ent_el.get_text(strip=True)
-                localisation = loc_el.get_text(strip=True) if loc_el else ""
-                lien = lien_el.get("href", "").split("?")[0]
-
-                if not lien or lien in liens_vus:
-                    continue
-                liens_vus.add(lien)
-
-                contexte = f"{titre} {entreprise} {localisation}"
-                secteur_valide = valider_et_classer_offre(
-                    titre, entreprise, contexte, est_post=False, lien=lien
-                )
-                if not secteur_valide:
-                    continue
-
-                pays_valide = verifier_pays_strict(localisation)
-                if not pays_valide:
-                    continue
-
-                offres.append({
-                    "Titre": titre,
-                    "Entreprise": entreprise,
-                    "Secteur": secteur_valide,
-                    "Pays": pays_valide,
-                    "Source": "LinkedIn (Offres)",
-                    "Lien": lien,
-                    "Niveau estimé": classer_niveau(titre),
-                    "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d")
-                })
-
-            time.sleep(2.5)
-        except Exception as e:
-            print(f"⚠️ [LinkedIn Direct - {mots_cles}] Erreur : {e}")
-
-    return offres
+    Lancee uniquement avec `python3 scraper.py --linkedin`, a la main.
+    """
+    from linkedin_guest import fetch_linkedin_guest_jobs
+    statistiques = {}
+    raw = fetch_linkedin_guest_jobs(stats=statistiques)
+    retained = []
+    for item in raw:
+        normalized = normaliser_source_plus(item)  # filtre metier / luxe / pays commun
+        if normalized:
+            retained.append(normalized)
+            key = item.get('_origine_diagnostic')
+            if key in statistiques:
+                statistiques[key]['retenues'] += 1
+    EXTRA_SOURCE_STATS.update(statistiques)
+    print(f"[LinkedIn direct] {len(raw)} offres lues, {len(retained)} retenues")
+    return retained
 
 
 # ==============================================================================
@@ -680,7 +611,8 @@ def fetch_alertes_linkedin():
 # 6. SAUVEGARDE, PURGE & PRÉSERVATION DES DONNÉES CRM
 # ==============================================================================
 
-def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", signals_output=None):
+def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", signals_output=None,
+                  linkedin=False):
     """Ne modifie jamais la base personnelle: conserve le flux en cas de panne.
 
     V6: les sites d'emploi indexables restent surveilles en mode gratuit,
@@ -690,10 +622,11 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
     collected = []
     counts = {}
     EXTRA_SOURCE_STATS.clear()
-    EXTRA_SOURCE_STATS['LinkedIn direct'] = {
-        'brutes': 0, 'retenues': 0, 'etat': 'manuel',
-        'detail': 'Consultation manuelle uniquement, pas de collecte automatisee',
-    }
+    if not linkedin:
+        EXTRA_SOURCE_STATS['LinkedIn direct'] = {
+            'brutes': 0, 'retenues': 0, 'etat': 'manuel',
+            'detail': 'Non lance : python3 scraper.py --linkedin (a la main, depuis le Mac)',
+        }
     EXTRA_SOURCE_STATS['Recherche web historique'] = {
         'brutes': 0, 'retenues': 0, 'etat': 'desactive',
         'detail': 'Requetes anciennes trop complexes et peu fiables',
@@ -703,7 +636,7 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
         ('ATS publics configures', fetch_ats_complementaires),
         ('Index gratuit', fetch_portails_specialises),
         ('Alertes LinkedIn', fetch_alertes_linkedin),
-    ):
+    ) + ((('LinkedIn direct', fetch_linkedin_jobs),) if linkedin else ()):
         try:
             rows = provider()
         except Exception as exc:
@@ -776,5 +709,7 @@ if __name__ == "__main__":
     cli.add_argument("--output", default="offres_detectees.csv")
     cli.add_argument("--report", default="scan_rapport.json")
     cli.add_argument("--signals-output", default="signaux_marche.csv")
+    cli.add_argument("--linkedin", action="store_true",
+                     help="Ajoute les offres LinkedIn publiques (a lancer a la main, pas sur GitHub)")
     args = cli.parse_args()
-    executer_tout(args.output, args.report, args.signals_output)
+    executer_tout(args.output, args.report, args.signals_output, linkedin=args.linkedin)
