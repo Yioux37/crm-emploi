@@ -601,6 +601,47 @@ def fetch_portails_specialises():
     return retained
 
 
+def fetch_linkedin_ciblage():
+    """Requete booleenne de la page Ciblage, a chaque scan (bouton ou GitHub).
+
+    Etape par etape :
+      1. la requete est construite depuis ciblage.json (comme le bouton LinkedIn) ;
+      2. LINKEDIN_CIBLAGE_PAGES pages de 10 offres par pays (2 par defaut, 0 = desactive) ;
+      3. filtre leger (pays, intitules exclus), puis on ne garde que les offres d'un
+         secteur reconnu : sans relecture humaine, le bruit (yachts, cuisines...) reste dehors ;
+      4. la fusion du flux et de la base supprime ensuite les doublons.
+    """
+    from linkedin_guest import fetch_ciblage_jobs
+    label = 'LinkedIn Ciblage'
+    requete = ciblage.requete_linkedin(avec_signaux=False)
+    try:
+        pages = int(os.getenv('LINKEDIN_CIBLAGE_PAGES', '2'))
+    except ValueError:
+        pages = 2
+    if not requete or pages <= 0:
+        EXTRA_SOURCE_STATS[label] = {'brutes': 0, 'retenues': 0, 'etat': 'desactive',
+                                     'detail': 'Requete vide ou LINKEDIN_CIBLAGE_PAGES=0'}
+        return []
+    cartes, bilan = fetch_ciblage_jobs(
+        requete, pages=pages,
+        on_progress=lambda i, total, nom: progress.tick(i, total, nom.replace('LinkedIn Ciblage / ', '')))
+    retenues = []
+    for carte in cartes:
+        ligne = normaliser_ciblage_linkedin(carte)
+        if ligne and ligne['Secteur']:
+            retenues.append(ligne)
+    if bilan['bloque']:
+        etat, detail = ('erreur' if not cartes else 'ok'), 'LinkedIn a limite les requetes : resultat partiel'
+    elif bilan['sautees']:
+        etat, detail = 'ok', f"{bilan['sautees']} page(s) refusee(s) par LinkedIn et sautee(s)"
+    else:
+        etat, detail = ('ok' if cartes else 'vide'), ''
+    EXTRA_SOURCE_STATS[label] = {'brutes': len(cartes), 'retenues': len(retenues),
+                                 'etat': etat, 'detail': detail}
+    print(f"[LinkedIn Ciblage] {len(cartes)} offres lues, {len(retenues)} retenues")
+    return retenues
+
+
 def fetch_alertes_linkedin():
     """Offres envoyees par LinkedIn dans les alertes e-mail (lecture seule IMAP)."""
     from linkedin_alerts import fetch_linkedin_alerts
@@ -648,6 +689,7 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
         ('ATS publics configures', fetch_ats_complementaires),
         ('Index gratuit', fetch_portails_specialises),
         ('Alertes LinkedIn', fetch_alertes_linkedin),
+        ('LinkedIn Ciblage', fetch_linkedin_ciblage),
     ) + ((('LinkedIn direct', fetch_linkedin_jobs),) if linkedin else ())
     # Barre de progression : une etape par collecteur, + signaux + enregistrement.
     etapes = [name for name, _ in providers]

@@ -77,21 +77,97 @@ def country_from_location(location: object, country_field: object = "") -> str |
     return next(iter(found or field_matches), None)
 
 
+# Marqueurs de genre et de contrat, dans toutes les langues des annonces :
+# (H/F), (F/H/X), (m/w/d), (w/m/d), (m/f/d), Directeur.rice, Directeur/trice...
+_TITLE_NOISE = re.compile(
+    r"\b(cdi|cdd|full time|temps plein|job|poste"
+    r"|h f x|f h x|h f d|h f|f h|m f d|f m d|m w d|w m d|m f x|m f|f m|hfx|hf|mwd|wmd|mfd"
+    r"|e|rice|trice)\b")
+# Lieux souvent accolés au titre (« Directeur Supply Chain - Paris ») : retirés en fin de titre.
+_LIEUX_FIN = sorted({c for villes in CITIES.values() for c in villes}
+                    | {w for mots in COUNTRY_WORDS.values() for w in mots if len(w) > 2},
+                    key=len, reverse=True)
+
+
 def normalize_title(title: object) -> str:
-    s = simplify(title)
-    s = re.sub(r"\b(cdi|cdd|h f|f h|m f|f m|hfx|hf|job|poste)\b", " ", s)
+    s = _TITLE_NOISE.sub(" ", simplify(title))
+    s = re.sub(r"\s+", " ", s).strip()
+    retire = True
+    while retire:  # « ... paris france » : on retire les deux
+        retire = False
+        for lieu in _LIEUX_FIN:
+            if s.endswith(" " + lieu):
+                s, retire = s[: -len(lieu) - 1].strip(), True
+                break
+    return s
+
+
+# Formes juridiques et mots d'enseigne qui ne changent pas l'employeur.
+_COMPANY_NOISE = re.compile(
+    r"\b(sa|sas|sasu|sarl|snc|spa|s p a|srl|s r l|ag|gmbh|ltd|limited|inc|llc|bv|nv"
+    r"|international|holding|france|suisse|switzerland|italia|italy)\b")
+_COMPANY_SUBSTITUTIONS = {
+    "hermes international": "hermes", "christian dior couture": "dior", "christian dior": "dior",
+    "dior couture": "dior", "prada group": "prada", "the swatch group": "swatch group",
+    "swatch": "swatch group", "lvmh group": "lvmh", "lvmh moet hennessy louis vuitton": "lvmh",
+    "bvlgari": "bulgari", "van cleef": "van cleef arpels",
+}
+
+
+def _company_core(s: str) -> str:
+    s = _COMPANY_NOISE.sub(" ", s)
+    s = re.sub(r"^(maison|groupe|group|gruppo|the)\s+", "", re.sub(r"\s+", " ", s).strip())
     return re.sub(r"\s+", " ", s).strip()
 
 
+_KNOWN_CACHE: dict = {"cle": None, "valeur": []}
+
+
+def _known_companies() -> list[tuple[str, "re.Pattern", str]]:
+    """(forme, motif mot entier, forme canonique) : sociétés du Ciblage + groupes connus.
+
+    Mis en cache tant que ciblage.json ne change pas (la fusion du flux compare
+    chaque offre à toutes les autres : des milliers d'appels par scan).
+    """
+    try:
+        import ciblage
+        config = ciblage.charger()
+    except Exception:
+        config = None
+    if _KNOWN_CACHE["cle"] is not None and _KNOWN_CACHE["cle"] is config:
+        return _KNOWN_CACHE["valeur"]
+    pairs = []
+    try:
+        import ciblage
+        for soc in (config or {"societes": []})["societes"]:
+            canon = simplify(soc["nom"])
+            canon = _COMPANY_SUBSTITUTIONS.get(canon, canon)
+            for nom in ciblage.noms_societe(soc):
+                if len(simplify(nom)) >= 4:  # « SIS » trop court pour un rapprochement
+                    pairs.append((simplify(nom), canon))
+    except Exception:
+        pass
+    for groupe, maisons in GROUP_CHILDREN.items():
+        pairs += [(groupe, groupe)] + [(m, m) for m in maisons]
+    valeur = [(forme, re.compile(r"(?<![a-z0-9])" + re.escape(forme) + r"(?![a-z0-9])"), canon)
+              for forme, canon in sorted(set(pairs), key=lambda p: -len(p[0]))]
+    _KNOWN_CACHE.update(cle=config if config is not None else None, valeur=valeur)
+    return valeur
+
+
 def normalize_company(company: object) -> str:
+    """« ROLEX SA », « Rolex » et « Maison Rolex » -> « rolex ». « Louis Vuitton Malletier »
+    -> « louis vuitton » (nom connu contenu dans le nom complet)."""
     s = simplify(company)
-    substitutions = {
-        "hermes": "hermes", "hermes international": "hermes",
-        "christian dior couture": "dior", "christian dior": "dior", "dior couture": "dior",
-        "vacheron constantin": "vacheron constantin", "audemars piguet sa": "audemars piguet",
-        "prada group": "prada", "the swatch group": "swatch group", "lvmh group": "lvmh",
-    }
-    return substitutions.get(s, s)
+    if s in _COMPANY_SUBSTITUTIONS:
+        return _COMPANY_SUBSTITUTIONS[s]
+    s = _company_core(s) or s
+    if s in _COMPANY_SUBSTITUTIONS:
+        return _COMPANY_SUBSTITUTIONS[s]
+    for forme, motif, canon in _known_companies():
+        if s == forme or motif.search(s):
+            return canon
+    return s
 
 
 GROUP_CHILDREN = {

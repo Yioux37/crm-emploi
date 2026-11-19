@@ -396,19 +396,6 @@ class CRMStore:
         self.backup_local()
         return added
 
-    def import_rows(self, rows: list[dict], mode: str = "feed") -> int:
-        """Importe des lignes au format du flux (Titre, Entreprise, Pays, Lien...).
-
-        Memes regles que import_csv : doublons fusionnes, notes et statuts conserves.
-        """
-        added = 0
-        with self.engine.begin() as conn:
-            for row in rows:
-                added += self._insert_or_match(conn, _row_values(row), mode=mode)
-        if added:
-            self.backup_local()
-        return added
-
     def purge_non_offers(self) -> int:
         """Supprime les faux positifs deja importes (articles, profils, listes).
 

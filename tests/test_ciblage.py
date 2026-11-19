@@ -129,7 +129,6 @@ def test_enregistrer_puis_publier(fichier):
 
 def test_resultat_linkedin_ciblage_vers_crm(fichier, tmp_path):
     from scraper import normaliser_ciblage_linkedin
-    from storage import CRMStore
     carte = {"title": "Directeur des opérations", "company": "Tolomei", "location": "Bourguébus",
              "url": "https://www.linkedin.com/jobs/view/42/", "search_country": "France"}
     ligne = normaliser_ciblage_linkedin(carte)
@@ -139,7 +138,73 @@ def test_resultat_linkedin_ciblage_vers_crm(fichier, tmp_path):
     autre = normaliser_ciblage_linkedin({**carte, "company": "Cuisines Industrielles SA"})
     assert autre["Secteur"] == ""
     assert normaliser_ciblage_linkedin({**carte, "title": "Stage supply chain"}) is None
+
+
+DOUBLONS = [  # (titre A, maison A, titre B, maison B, pays)
+    ("Directeur Supply Chain H/F", "ROLEX SA", "Directeur Supply Chain H/F", "Rolex", "Suisse"),
+    ("Directeur Supply Chain (F/H/X)", "Chanel", "Directeur Supply Chain", "CHANEL SAS", "France"),
+    ("Head of Operations (m/w/d)", "Audemars Piguet", "Head of Operations", "Audemars Piguet", "Suisse"),
+    ("Directeur Supply Chain - Paris", "Hermès", "Directeur Supply Chain", "Hermès Sellier", "France"),
+    ("Directeur.rice Fashion Operations", "CHANEL", "Directeur Fashion Operations", "Chanel", "France"),
+    ("Plant Manager", "Louis Vuitton Malletier", "Plant Manager", "Louis Vuitton", "Italie"),
+]
+DIFFERENTS = [
+    ("Directeur Supply Chain", "Hermès", "Directeur Industriel", "Hermès", "France"),
+    ("Directeur Supply Chain", "Rolex", "Directeur Supply Chain", "Tudor", "Suisse"),
+]
+
+
+@pytest.mark.parametrize("ta,ca,tb,cb,pays", DOUBLONS)
+def test_anti_doublon_linkedin_et_site_maison(ta, ca, tb, cb, pays):
+    from matching import same_opportunity
+    a = {"title": ta, "company": ca, "country": pays, "link": "https://www.linkedin.com/jobs/view/4012345678/"}
+    b = {"title": tb, "company": cb, "country": pays, "link": "https://careers.exemple.com/job/1"}
+    assert same_opportunity(a, b)
+
+
+@pytest.mark.parametrize("ta,ca,tb,cb,pays", DIFFERENTS)
+def test_postes_differents_restent_separes(ta, ca, tb, cb, pays):
+    from matching import same_opportunity
+    assert not same_opportunity({"title": ta, "company": ca, "country": pays, "link": ""},
+                                {"title": tb, "company": cb, "country": pays, "link": ""})
+
+
+def test_republication_linkedin_fusionnee_dans_la_base(tmp_path):
+    """LinkedIn republie l'offre avec un nouvel identifiant : une seule fiche, statut conservé."""
+    from storage import CRMStore, _row_values
     store = CRMStore(db_path=tmp_path / "crm.sqlite3")
-    assert store.import_rows([ligne]) == 1
-    assert store.import_rows([ligne]) == 0  # doublon : rien de plus
-    assert store.list_offers().iloc[0]["company"] == "Tolomei"
+    ligne = {"Titre": "Directeur Supply Chain H/F", "Entreprise": "Hermès", "Pays": "France",
+             "Source": "LinkedIn (Offres)", "Lien": "https://www.linkedin.com/jobs/view/4000000001/"}
+    with store.engine.begin() as conn:
+        assert store._insert_or_match(conn, _row_values(ligne), "feed")
+    offre = store.list_offers().iloc[0]
+    store.update_offer(offre["id"], {"status": "Ecarte"})
+    repost = {**ligne, "Titre": "CDI - Directeur Supply Chain (F/H/X)", "Entreprise": "HERMES SAS",
+              "Lien": "https://www.linkedin.com/jobs/view/4999999999/"}
+    with store.engine.begin() as conn:
+        assert not store._insert_or_match(conn, _row_values(repost), "feed")
+    offres = store.list_offers()
+    assert len(offres) == 1 and offres.iloc[0]["status"] == "Ecarte"  # ne revient pas
+
+
+def test_scan_inclut_la_recherche_linkedin_du_ciblage(fichier, monkeypatch):
+    import scraper
+    cartes = [
+        {"title": "Directeur des opérations", "company": "Tolomei", "location": "Florence, Italie",
+         "url": "https://www.linkedin.com/jobs/view/4000000042/", "search_country": "Italie"},
+        {"title": "Plant Director", "company": "Cuisines Industrielles", "location": "Modène, Italie",
+         "url": "https://www.linkedin.com/jobs/view/4000000043/", "search_country": "Italie"},
+    ]
+    vu = {}
+
+    def faux_fetch(requete, pages, on_progress=None):
+        vu["requete"], vu["pages"] = requete, pages
+        return cartes, {"requetes": 2, "bloque": False, "erreurs": 0, "sautees": 0}
+
+    monkeypatch.setattr("linkedin_guest.fetch_ciblage_jobs", faux_fetch)
+    monkeypatch.setenv("LINKEDIN_CIBLAGE_PAGES", "2")
+    scraper.EXTRA_SOURCE_STATS.clear()
+    lignes = scraper.fetch_linkedin_ciblage()
+    assert vu == {"requete": '("Directeur") AND ("Luxe" OR "Horlogerie") NOT ("Stage")', "pages": 2}
+    assert [l["Entreprise"] for l in lignes] == ["Tolomei"]  # le bruit sans secteur reste dehors
+    assert scraper.EXTRA_SOURCE_STATS["LinkedIn Ciblage"]["retenues"] == 1

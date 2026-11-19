@@ -66,7 +66,7 @@ HOUSE_QUERIES = ['Hermès', 'Chanel', 'Louis Vuitton', 'Dior', 'Cartier', 'Rolex
                  'TAG Heuer', 'Swatch Group', 'Vacheron Constantin', 'Van Cleef & Arpels',
                  'Zegna', 'Valentino']
 
-CIBLAGE_HOUSES_PER_RUN = 2
+CIBLAGE_HOUSES_PER_RUN = 4
 # Pays interroges pour la requete booleenne de la page Ciblage (libelle LinkedIn -> pays CRM).
 CIBLAGE_LOCATIONS = {'France': 'France', 'Switzerland': 'Suisse', 'Italy': 'Italie'}
 PAGE_SIZE = 10  # la page invitee renvoie 10 offres par appel
@@ -96,9 +96,12 @@ def build_ciblage_queries(requete: str | None = None, pages: int = 1) -> list[tu
 
 
 def build_queries() -> list[tuple[str, dict]]:
-    """Liste (libelle de diagnostic, parametres) dans l'ordre d'execution."""
-    # La recherche de papa passe en premier : c'est elle qu'il a choisie.
-    queries = build_ciblage_queries()
+    """Liste (libelle de diagnostic, parametres) dans l'ordre d'execution.
+
+    La requete de la page Ciblage n'est PAS ici : elle tourne a chaque scan
+    (fetch_linkedin_ciblage dans scraper.py), pas seulement avec --linkedin.
+    """
+    queries = []
     for country, keywords in FUNCTION_QUERIES.items():
         for kw in keywords:
             queries.append((f'LinkedIn direct / {kw} ({country})',

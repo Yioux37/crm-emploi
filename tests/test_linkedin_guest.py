@@ -56,13 +56,9 @@ class LinkedInGuestTests(TestCase):
     def test_queries_never_contain_the_word_luxe_and_target_houses(self):
         queries = build_queries()
         self.assertLessEqual(len(queries), 45)
-        # Les recherches automatiques evitent « luxe » (absent des titres). Seule la
-        # requete booleenne choisie par papa dans la page Ciblage peut le contenir.
-        self.assertTrue(all('luxe' not in p['keywords'].lower() for label, p in queries
-                            if not label.startswith('LinkedIn Ciblage')))
-        self.assertEqual([l for l, _ in queries[:3]],
-                         ['LinkedIn Ciblage / France', 'LinkedIn Ciblage / Switzerland',
-                          'LinkedIn Ciblage / Italy'])
+        self.assertTrue(all('luxe' not in p['keywords'].lower() for _, p in queries))
+        # La requete Ciblage tourne a chaque scan, pas dans la serie --linkedin.
+        self.assertFalse(any(label.startswith('LinkedIn Ciblage') for label, _ in queries))
         self.assertIn('LinkedIn direct / Hermès', [label for label, _ in queries])
 
     def test_stops_immediately_when_linkedin_throttles(self):
