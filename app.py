@@ -116,12 +116,21 @@ hr{ border-color:var(--line); }
 .score .fill{ height:100%; background:var(--green); border-radius:2px; }
 .score .k{ font-size:.6rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--sage); margin-bottom:5px; }
 
-/* Ligne d'offre compacte */
-.offer-title{ font-weight:600; font-size:1rem; color:var(--ink); line-height:1.3; }
-.offer-meta{ color:var(--sage); font-size:.83rem; margin-top:4px; }
-.pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.72rem;
-  border:1px solid var(--line); background:#fff; color:var(--ink); margin-right:6px; }
-.pill-new{ background:#1F4D3A; border-color:#1F4D3A; color:#fff; }
+/* Liste d'offres : une ligne par offre, séparateurs fins, tout sur une seule ligne */
+.offer-title{ font-weight:600; font-size:.95rem; color:var(--ink); line-height:1.35;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.offer-meta{ color:var(--sage); font-size:.8rem; margin-top:3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.offer-new{ color:var(--green); font-weight:600; font-size:.66rem; letter-spacing:1px;
+  text-transform:uppercase; margin-right:8px; }
+.row-sep{ border-top:1px solid var(--line); margin:2px 0; }
+/* « Ouvrir » : simple lien texte, pas de cadre */
+.stButton>button[kind="tertiary"]{ border:none !important; background:transparent; color:var(--green);
+  font-size:.85rem; font-weight:500; padding:4px 0; }
+.stButton>button[kind="tertiary"]:hover{ text-decoration:underline; color:var(--green-700); }
+.score.compact{ width:56px; }
+.score.compact .v{ font-size:1.15rem; }
+.score.compact .track{ margin-top:5px; }
 
 /* Frise d'avancement : une case par étape */
 .funnel{ display:flex; gap:8px; margin:6px 0 22px 0; flex-wrap:wrap; }
@@ -379,11 +388,11 @@ def short_table(rows: pd.DataFrame, *, show_status: bool = True):
     )
 
 
-def score_badge(score: int, label: str = "") -> str:
+def score_badge(score: int, label: str = "", compact: bool = False) -> str:
     """Score sobre : chiffre en noir, « /100 » discret, fine jauge verte proportionnelle."""
     score = max(0, min(100, int(score)))
     head = f"<div class='k'>{label}</div>" if label else ""
-    return (f"<div class='score'>{head}<div class='v'>{score}<span>/100</span></div>"
+    return (f"<div class='score{' compact' if compact else ''}'>{head}<div class='v'>{score}<span>/100</span></div>"
             f"<div class='track'><div class='fill' style='width:{score}%'></div></div></div>")
 
 
@@ -393,22 +402,44 @@ def _esc(text: object) -> str:
     return html.escape(str(text or ""))
 
 
+MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+
+
+def short_date(iso: str) -> str:
+    """2026-11-19 -> « 19 nov. » : court, ne passe jamais à la ligne."""
+    try:
+        d = date.fromisoformat(str(iso))
+        return f"{d.day} {MOIS[d.month - 1]}"
+    except ValueError:
+        return str(iso or "")
+
+
 def inline_offer_buttons(offers_subset: pd.DataFrame, prefix: str, limit: int = 5):
-    """Liste d'offres compacte : badge de score | poste + infos | bouton."""
+    """Liste sobre : un seul cadre, une ligne par offre, séparateurs fins.
+
+    Score | poste (1 ligne) + maison · pays · date (1 ligne) | Ouvrir.
+    Le statut n'apparaît que s'il a bougé (« À analyser » partout = bruit).
+    Le titre complet reste lisible au survol.
+    """
+    rows = offers_subset.head(limit)
+    if rows.empty:
+        return
     new_cutoff = (date.today() - timedelta(days=3)).isoformat()
-    for _, r in offers_subset.head(limit).iterrows():
-        with st.container(border=True):
-            a, b, c = st.columns([0.9, 6, 1.4], vertical_alignment="center")
-            a.markdown(score_badge(r["score"]), unsafe_allow_html=True)
-            pills = f"<span class='pill'>{_esc(STATUS_LABELS.get(r['status'], r['status']))}</span>"
-            if r["detected_on"] >= new_cutoff:
-                pills = "<span class='pill pill-new'>Nouveau</span>" + pills
+    with st.container(border=True):
+        for i, (_, r) in enumerate(rows.iterrows()):
+            if i:
+                st.markdown("<div class='row-sep'></div>", unsafe_allow_html=True)
+            a, b, c = st.columns([0.75, 6, 0.9], vertical_alignment="center")
+            a.markdown(score_badge(r["score"], compact=True), unsafe_allow_html=True)
+            meta = [_esc(r["company"]), _esc(r["country"]), short_date(r["detected_on"])]
+            if r["status"] != "A analyser":
+                meta.append(_esc(STATUS_LABELS.get(r["status"], r["status"])))
+            new = "<span class='offer-new'>Nouveau</span>" if r["detected_on"] >= new_cutoff else ""
             b.markdown(
-                f"<div class='offer-title'>{_esc(r['title'])}</div>"
-                f"<div class='offer-meta'>{pills}{_esc(r['company'])} · {_esc(r['country'])}"
-                f" · détectée le {_esc(r['detected_on'])}</div>",
+                f"<div class='offer-title' title='{_esc(r['title'])}'>{_esc(r['title'])}</div>"
+                f"<div class='offer-meta'>{new}{' · '.join(meta)}</div>",
                 unsafe_allow_html=True)
-            if c.button("Ouvrir", key=f"{prefix}_{r['id']}", width="stretch"):
+            if c.button("Ouvrir", key=f"{prefix}_{r['id']}", type="tertiary", width="stretch"):
                 go_to_offer(r["id"])
 
 
@@ -885,7 +916,8 @@ if page == "Tableau de bord":
                 else:
                     tiers = pd.cut(open_df["score"], [-1, 69, 84, 100], labels=["< 70", "70–84", "85+"])
                     data = tiers.value_counts().reindex(["85+", "70–84", "< 70"])
-                st.bar_chart(data, horizontal=True, height=130, color="#1F4D3A")
+                # sort=False : garde l'ordre voulu (85+ en haut), pas l'ordre alphabétique.
+                st.bar_chart(data, horizontal=True, height=130, color="#1F4D3A", sort=False)
         st.divider()
         st.subheader("Flux récent")
         st.caption(f"{len(df)} opportunité(s) dans le CRM · {len(visible)} affichée(s) avec les filtres actuels.")
