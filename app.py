@@ -876,6 +876,104 @@ def _jeton_github() -> str:
     return _secret_ou("", "CIBLAGE_GITHUB_TOKEN", "GITHUB_TOKEN")
 
 
+def _apercu_linkedin(requete: str, pages: int) -> dict:
+    """Lance la requête Ciblage sur LinkedIn et prépare l'aperçu (score, doublons)."""
+    from linkedin_guest import fetch_ciblage_jobs
+    from scraper import normaliser_ciblage_linkedin
+    barre = st.progress(0.0, text="Recherche sur LinkedIn…")
+
+    def avance(i, total, label):
+        pays = label.replace("LinkedIn Ciblage / ", "")
+        barre.progress(min(i / max(total, 1), 1.0), text=f"LinkedIn · {pays} · {i}/{total}")
+
+    cartes, bilan = fetch_ciblage_jobs(requete, pages=pages, on_progress=avance)
+    barre.empty()
+    deja = {canonical_url(x) for x in df.get("link", pd.Series(dtype=str)).astype(str)} if not df.empty else set()
+    lignes = []
+    for carte in cartes:
+        ligne = normaliser_ciblage_linkedin(carte)
+        if not ligne:
+            continue
+        score, _ = calculate_score({"title": ligne["Titre"], "company": ligne["Entreprise"],
+                                    "sector": ligne["Secteur"], "country": ligne["Pays"],
+                                    "level": ligne["Niveau estimé"],
+                                    "detected_on": ligne["Date de détection"]}, prefs_score)
+        ligne["_score"] = score
+        ligne["_lieu"] = carte.get("location", "")
+        ligne["_deja"] = canonical_url(ligne["Lien"]) in deja
+        lignes.append(ligne)
+    lignes.sort(key=lambda r: (-bool(r["Secteur"]), -r["_score"]))
+    return {"id": st.session_state.get("li_apercu_n", 0) + 1, "requete": requete,
+            "lignes": lignes, "bruts": len(cartes), "bilan": bilan}
+
+
+def linkedin_import_section(requete: str):
+    """Aperçu des offres LinkedIn de la requête, puis import de la sélection."""
+    st.markdown("##### Importer ces offres dans le CRM")
+    st.caption("Le CRM lance la même recherche sur la France, la Suisse et l'Italie (30 derniers "
+               "jours). Tu choisis ensuite ce qui entre dans le Pipeline. Les offres d'un secteur "
+               "reconnu sont pré-cochées ; les autres sont visibles, mais décochées.")
+    a, b = st.columns([2, 1], vertical_alignment="bottom")
+    pages = a.radio("Profondeur", [1, 2, 3], index=1, horizontal=True, key="li_pages",
+                    format_func=lambda n: f"{10 * n} offres par pays")
+    if b.button("Voir les offres LinkedIn", width="stretch", key="li_voir"):
+        apercu = _apercu_linkedin(requete, pages)
+        st.session_state["li_apercu_n"] = apercu["id"]
+        st.session_state["li_apercu"] = apercu
+
+    apercu = st.session_state.get("li_apercu")
+    if not apercu:
+        return
+    bilan = apercu["bilan"]
+    if bilan["bloque"]:
+        st.warning("LinkedIn a limité les requêtes : l'aperçu est partiel. Réessaie dans "
+                   "quelques minutes, ou lance `python3 scraper.py --linkedin` depuis le Mac.")
+    elif bilan.get("sautees"):
+        st.caption(f"{bilan['sautees']} page(s) refusée(s) par LinkedIn et sautée(s) : "
+                   "relance l'aperçu plus tard pour compléter.")
+    if apercu["requete"] != requete:
+        st.caption("La requête a changé depuis cet aperçu : clique à nouveau sur « Voir les offres ».")
+    lignes = apercu["lignes"]
+    if not lignes:
+        st.info(f"Aucune offre exploitable ({apercu['bruts']} résultat(s) LinkedIn lus).")
+        return
+    table = pd.DataFrame([{
+        "Importer": bool(r["Secteur"]) and not r["_deja"],
+        "Score": r["_score"], "Poste": r["Titre"], "Entreprise": r["Entreprise"],
+        "Lieu": r["_lieu"] or r["Pays"], "Secteur": r["Secteur"] or "—",
+        "Déjà dans le CRM": r["_deja"], "Lien": r["Lien"],
+    } for r in lignes])
+    choix = st.data_editor(
+        table, key=f"li_table_{apercu['id']}", hide_index=True, width="stretch",
+        height=min(38 * (len(table) + 1) + 4, 640),
+        disabled=["Score", "Poste", "Entreprise", "Lieu", "Secteur", "Déjà dans le CRM", "Lien"],
+        column_config={
+            "Importer": st.column_config.CheckboxColumn("Importer"),
+            "Score": st.column_config.ProgressColumn("Score /100", min_value=0, max_value=100, format="%d"),
+            "Poste": st.column_config.TextColumn("Poste", width="large"),
+            "Déjà dans le CRM": st.column_config.CheckboxColumn("Déjà au CRM", width="small"),
+            "Lien": st.column_config.LinkColumn("Annonce", display_text="Ouvrir"),
+        })
+    retenues = [r for r, coche in zip(lignes, choix["Importer"].tolist()) if coche]
+    n_secteur = sum(1 for r in lignes if r["Secteur"])
+    st.caption(f"{apercu['bruts']} offres lues sur LinkedIn · {len(lignes)} dans les pays cibles · "
+               f"{n_secteur} dans un secteur reconnu.")
+    c1, c2 = st.columns([1.3, 1])
+    if c1.button(f"Importer la sélection ({len(retenues)})", type="primary",
+                 disabled=not retenues, width="stretch", key="li_importer"):
+        propres = [{k: v for k, v in r.items() if not k.startswith("_")} for r in retenues]
+        ajout = store.import_rows(propres)
+        doublons = len(propres) - ajout
+        st.session_state["notice"] = (f"{ajout} offre(s) LinkedIn ajoutée(s) au Pipeline, en « À analyser »."
+                                      + (f" {doublons} déjà présente(s) ou écartée(s) par le filtre."
+                                         if doublons else ""))
+        st.session_state.pop("li_apercu", None)
+        st.rerun()
+    if c2.button("Fermer l'aperçu", width="stretch", key="li_fermer"):
+        st.session_state.pop("li_apercu", None)
+        st.rerun()
+
+
 def ciblage_page():
     """Secteurs, sociétés et recherche LinkedIn : modifiables sans toucher au code."""
     st.subheader("Ciblage du radar")
@@ -971,6 +1069,7 @@ def ciblage_page():
                            width="stretch")
             st.caption("Les offres n'utilisent pas le bloc « Signaux » : une annonce ne contient "
                        "pas « mandat » ni « opportunité ». Il faut être connecté à LinkedIn.")
+            linkedin_import_section(q_offres)
 
     st.divider()
     modifie = propre != cfg

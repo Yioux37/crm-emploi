@@ -66,12 +66,39 @@ HOUSE_QUERIES = ['Hermès', 'Chanel', 'Louis Vuitton', 'Dior', 'Cartier', 'Rolex
                  'TAG Heuer', 'Swatch Group', 'Vacheron Constantin', 'Van Cleef & Arpels',
                  'Zegna', 'Valentino']
 
-CIBLAGE_HOUSES_PER_RUN = 4
+CIBLAGE_HOUSES_PER_RUN = 2
+# Pays interroges pour la requete booleenne de la page Ciblage (libelle LinkedIn -> pays CRM).
+CIBLAGE_LOCATIONS = {'France': 'France', 'Switzerland': 'Suisse', 'Italy': 'Italie'}
+PAGE_SIZE = 10  # la page invitee renvoie 10 offres par appel
+
+
+def build_ciblage_queries(requete: str | None = None, pages: int = 1) -> list[tuple[str, dict]]:
+    """La requete booleenne de la page Ciblage, sur France / Suisse / Italie.
+
+    Memes parametres que le bouton « Chercher dans les offres LinkedIn » (30 derniers
+    jours, sans filtre de niveau) : on retrouve les memes resultats dans le CRM.
+    """
+    if requete is None:
+        try:
+            import ciblage
+            requete = ciblage.requete_linkedin(avec_signaux=False)
+        except Exception:
+            requete = ''
+    if not requete:
+        return []
+    queries = []
+    for page in range(max(1, pages)):
+        for location in CIBLAGE_LOCATIONS:
+            queries.append((f'LinkedIn Ciblage / {location}' + (f' p{page + 1}' if page else ''),
+                            {'keywords': requete, 'location': location, 'f_TPR': LAST_30_DAYS,
+                             'start': page * PAGE_SIZE}))
+    return queries
 
 
 def build_queries() -> list[tuple[str, dict]]:
     """Liste (libelle de diagnostic, parametres) dans l'ordre d'execution."""
-    queries = []
+    # La recherche de papa passe en premier : c'est elle qu'il a choisie.
+    queries = build_ciblage_queries()
     for country, keywords in FUNCTION_QUERIES.items():
         for kw in keywords:
             queries.append((f'LinkedIn direct / {kw} ({country})',
@@ -172,3 +199,66 @@ def fetch_linkedin_guest_jobs(stats: dict | None = None, session=None,
                             'etat': 'ok' if cards else 'vide'}
         print(f'⏳ [{label}] {len(cards)} offres')
     return rows
+
+
+def fetch_ciblage_jobs(requete: str, pages: int = 2, session=None, pause=(3.0, 5.0),
+                       sleep=time.sleep, on_progress=None) -> tuple[list[dict], dict]:
+    """Resultats LinkedIn de la requete Ciblage, pour l'apercu dans l'appli.
+
+    Etape par etape :
+      1. une requete par pays et par page (10 offres par page) ;
+      2. sur un refus 429 (trop de requetes), UNE nouvelle tentative apres 10 a 15 s.
+         Un 429 isole est frequent (LinkedIn regule au coup par coup) : la requete est
+         alors sautee. Trois refus de suite, ou un 999 / 403 (blocage), arretent tout ;
+      3. chaque carte garde le pays de la recherche, utile quand le lieu publie
+         n'est qu'une petite ville (« Bourguebus », « Clichy »).
+    Renvoie (cartes, bilan) avec bilan = {'requetes', 'bloque', 'erreurs'}.
+    """
+    session = session or requests.Session()
+    queries = build_ciblage_queries(requete, pages)
+    rows, seen = [], set()
+    bilan = {'requetes': 0, 'bloque': False, 'erreurs': 0, 'sautees': 0}
+    refus_de_suite = 0
+    for index, (label, params) in enumerate(queries):
+        if on_progress:
+            on_progress(index, len(queries), label)
+        if index:
+            sleep(random.uniform(*pause))
+        resp = None
+        for tentative in range(2):
+            try:
+                resp = session.get(SEARCH_URL, params=params, headers=HEADERS, timeout=20)
+            except requests.RequestException:
+                resp = None
+                break
+            bilan['requetes'] += 1
+            if resp.status_code == 429 and tentative == 0:
+                sleep(random.uniform(10.0, 15.0))
+                continue
+            break
+        if resp is None:
+            bilan['erreurs'] += 1
+            continue
+        if resp.status_code == 429:
+            bilan['sautees'] += 1
+            refus_de_suite += 1
+            if refus_de_suite >= 3:
+                bilan['bloque'] = True
+                break
+            continue
+        if resp.status_code in BLOCKING_CODES:
+            bilan['bloque'] = True
+            break
+        refus_de_suite = 0
+        if resp.status_code != 200:
+            bilan['erreurs'] += 1
+            continue
+        for card in parse_cards(resp.text):
+            if card['url'] in seen:
+                continue
+            seen.add(card['url'])
+            card['search_country'] = CIBLAGE_LOCATIONS[params['location']]
+            rows.append(card)
+    if on_progress:
+        on_progress(len(queries), len(queries), 'Termine')
+    return rows, bilan

@@ -125,3 +125,21 @@ def test_enregistrer_puis_publier(fichier):
     session = Session()
     ok, _ = ciblage.publier_sur_github(propre, "jeton", "moi/crm", session=session)
     assert ok and session.put_body["branch"] == "main" and "sha" not in session.put_body
+
+
+def test_resultat_linkedin_ciblage_vers_crm(fichier, tmp_path):
+    from scraper import normaliser_ciblage_linkedin
+    from storage import CRMStore
+    carte = {"title": "Directeur des opérations", "company": "Tolomei", "location": "Bourguébus",
+             "url": "https://www.linkedin.com/jobs/view/42/", "search_country": "France"}
+    ligne = normaliser_ciblage_linkedin(carte)
+    # Petite ville sans pays : on garde le pays de la recherche LinkedIn.
+    assert ligne["Pays"] == "France" and ligne["Secteur"] == "Maroquinerie, Luxe"
+    # Employeur inconnu : secteur laissé vide plutôt qu'un faux « Luxe ».
+    autre = normaliser_ciblage_linkedin({**carte, "company": "Cuisines Industrielles SA"})
+    assert autre["Secteur"] == ""
+    assert normaliser_ciblage_linkedin({**carte, "title": "Stage supply chain"}) is None
+    store = CRMStore(db_path=tmp_path / "crm.sqlite3")
+    assert store.import_rows([ligne]) == 1
+    assert store.import_rows([ligne]) == 0  # doublon : rien de plus
+    assert store.list_offers().iloc[0]["company"] == "Tolomei"

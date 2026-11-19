@@ -529,6 +529,41 @@ def normaliser_source_plus(raw):
     }
 
 
+def normaliser_ciblage_linkedin(raw):
+    """Resultat de la requete Ciblage -> ligne CRM. Filtre volontairement leger.
+
+    LinkedIn a deja applique la requete de papa : on ne garde que les garde-fous
+    (pays cible, intitules exclus, interim/hotellerie). Le secteur n'est rempli
+    que s'il est reconnu (mots-cles ou societe du ciblage) : sinon il reste vide,
+    plutot que d'etiqueter « Luxe » un fabricant de cuisines industrielles.
+    """
+    titre = str(raw.get("title") or "").strip()
+    entreprise = str(raw.get("company") or "").strip()
+    lien = str(raw.get("url") or "").strip()
+    if not (titre and entreprise and canonical_url(lien)):
+        return None
+    if any(ex in titre.lower() for ex in MOTS_EXCLUSION_TITRE):
+        return None
+    if any(ex in entreprise.lower() for ex in ENTREPRISES_EXCLUES):
+        return None
+    localisation = str(raw.get("location") or "")
+    pays = verifier_pays_strict(localisation) or raw.get("search_country")
+    if pays not in ("France", "Suisse", "Italie"):
+        return None
+    secteurs = ciblage.secteurs_detectes(f"{titre} {entreprise}")
+    cible = ciblage.societe_reconnue(entreprise)
+    if cible and cible.get("secteur") and cible["secteur"] not in secteurs:
+        secteurs.append(cible["secteur"])
+    if (cible or any(m in entreprise.lower() for m in MAISONS_ET_MANUFACTURES)) \
+            and ciblage.SECTEUR_LUXE not in secteurs:
+        secteurs.append(ciblage.SECTEUR_LUXE)
+    return {
+        "Titre": titre, "Entreprise": entreprise, "Secteur": ", ".join(secteurs), "Pays": pays,
+        "Source": "LinkedIn (Offres)", "Lien": lien, "Niveau estimé": classer_niveau(titre),
+        "Date de détection": pd.Timestamp.today().strftime("%Y-%m-%d"),
+    }
+
+
 EXTRA_SOURCE_STATS = {}
 
 

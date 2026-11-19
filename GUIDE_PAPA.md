@@ -28,6 +28,8 @@ Tu peux changer toi-même les secteurs, les sociétés et ta recherche LinkedIn,
 - **Sociétés :** ajoute une maison, un atelier ou un façonnier en bas du tableau. En priorité **Haute**, la société gagne des points dans le score et le radar la recherche par son nom. **Autres noms** sert aux variantes (Dior pour Christian Dior).
 - **Recherche LinkedIn :** un terme par ligne dans chaque bloc. La requête booléenne se construit toute seule. Clique sur **Chercher dans les posts LinkedIn** ou **Chercher dans les offres LinkedIn** pour l'ouvrir directement.
 
+- **Importer ces offres dans le CRM :** sous la requête, clique sur **Voir les offres LinkedIn**. Le CRM fait la même recherche sur la France, la Suisse et l'Italie. Les offres d'un secteur reconnu sont déjà cochées : décoche ce qui ne t'intéresse pas, puis clique sur **Importer la sélection**. Elles arrivent dans le Pipeline, en « À analyser ». Si LinkedIn freine, réessaie quelques minutes plus tard.
+
 Termine toujours par **Enregistrer le ciblage**. Tant que tu n'as pas cliqué, rien n'est changé. **Annuler les modifications** remet la dernière version enregistrée.
 
 ## Le score sur 100

@@ -56,7 +56,13 @@ class LinkedInGuestTests(TestCase):
     def test_queries_never_contain_the_word_luxe_and_target_houses(self):
         queries = build_queries()
         self.assertLessEqual(len(queries), 45)
-        self.assertTrue(all('luxe' not in p['keywords'].lower() for _, p in queries))
+        # Les recherches automatiques evitent « luxe » (absent des titres). Seule la
+        # requete booleenne choisie par papa dans la page Ciblage peut le contenir.
+        self.assertTrue(all('luxe' not in p['keywords'].lower() for label, p in queries
+                            if not label.startswith('LinkedIn Ciblage')))
+        self.assertEqual([l for l, _ in queries[:3]],
+                         ['LinkedIn Ciblage / France', 'LinkedIn Ciblage / Switzerland',
+                          'LinkedIn Ciblage / Italy'])
         self.assertIn('LinkedIn direct / Hermès', [label for label, _ in queries])
 
     def test_stops_immediately_when_linkedin_throttles(self):
@@ -94,3 +100,26 @@ class LinkedInGuestTests(TestCase):
                 scraper.executer_tout(os.path.join(d, 'f.csv'), os.path.join(d, 'r.json'),
                                       linkedin=True)
                 guest.assert_called_once()
+
+
+class CiblageFetchTests(TestCase):
+    """Requete booleenne de la page Ciblage, lancee depuis l'appli."""
+
+    def test_429_isole_saute_la_page_sans_tout_arreter(self):
+        from linkedin_guest import fetch_ciblage_jobs
+        # France : 429 puis 429 (sautee) ; Suisse : 200 ; Italie : 200.
+        session = FakeSession([429, 429, 200, 200])
+        rows, bilan = fetch_ciblage_jobs('("Directeur") AND ("Luxe")', pages=1,
+                                         session=session, sleep=lambda s: None)
+        self.assertEqual(bilan['sautees'], 1)
+        self.assertFalse(bilan['bloque'])
+        self.assertEqual({r['search_country'] for r in rows}, {'Suisse'})  # doublons fusionnes
+
+    def test_blocage_999_arrete_net(self):
+        from linkedin_guest import fetch_ciblage_jobs
+        session = FakeSession([999, 200, 200])
+        rows, bilan = fetch_ciblage_jobs('("Directeur")', pages=1, session=session,
+                                         sleep=lambda s: None)
+        self.assertTrue(bilan['bloque'])
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(rows, [])
