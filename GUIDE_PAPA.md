@@ -17,7 +17,18 @@ Ce site est ton **carnet privé de recherche d'emploi** pour les postes de direc
 - **Signaux marché :** actualités d'entreprises (investissement, nouvelle manufacture, acquisition, nomination). Ce sont des **pistes de mise en relation**, pas des offres d'emploi. Lis l'article et vérifie sa date avant de contacter quelqu'un.
 - **Sources surveillées :** la liste des sites d'emploi, des maisons et des médias suivis par le radar. Certains ont des flux publics ; les autres sont recherchés via un moteur de recherche en rotation.
 - **Statistiques :** le suivi des offres, candidatures et entretiens.
-- **Préférences :** les pays, maisons et métiers qui t'intéressent le plus.
+- **Ciblage :** les secteurs, sociétés et la recherche LinkedIn que suit le radar (voir plus bas).
+- **Réglages :** les pays, métiers et le seuil d'alerte.
+
+## Modifier ce que le radar cherche : page Ciblage
+
+Tu peux changer toi-même les secteurs, les sociétés et ta recherche LinkedIn, sans passer par moi.
+
+- **Secteurs :** une ligne par secteur, avec ses mots-clés séparés par des virgules. Un début de mot suffit : « joaill » trouve joaillerie, joaillier et joaillière. Coche **Prioritaire** pour les secteurs qui comptent le plus.
+- **Sociétés :** ajoute une maison, un atelier ou un façonnier en bas du tableau. En priorité **Haute**, la société gagne des points dans le score et le radar la recherche par son nom. **Autres noms** sert aux variantes (Dior pour Christian Dior).
+- **Recherche LinkedIn :** un terme par ligne dans chaque bloc. La requête booléenne se construit toute seule. Clique sur **Chercher dans les posts LinkedIn** ou **Chercher dans les offres LinkedIn** pour l'ouvrir directement.
+
+Termine toujours par **Enregistrer le ciblage**. Tant que tu n'as pas cliqué, rien n'est changé. **Annuler les modifications** remet la dernière version enregistrée.
 
 ## Le score sur 100
 

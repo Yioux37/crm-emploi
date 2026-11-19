@@ -188,7 +188,10 @@ class PublicATSTests(unittest.TestCase):
         days = [date(2026, 11, 17) + timedelta(days=i) for i in range(20)]
         visited = {domain for day in days for _, domain, _, _, _
                    in select_search_sites(day, budget=60)}
-        self.assertEqual(visited, {domain for _, domain, _, _, _ in SEARCH_SITES})
+        catalogue = {domain for _, domain, _, _, _ in SEARCH_SITES}
+        self.assertTrue(catalogue.issubset(visited))
+        # Le reste : les sociétés de la page Ciblage, en recherche ouverte sur leur nom.
+        self.assertTrue(all(d.endswith('.ciblage') for d in visited - catalogue))
 
 
 class SignalTests(unittest.TestCase):

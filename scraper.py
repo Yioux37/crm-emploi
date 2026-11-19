@@ -9,6 +9,7 @@ from datetime import date
 import argparse
 import json
 import progress
+import ciblage
 from matching import country_from_location, canonical_url
 from merge_feed import merge_feed
 from storage import SCRAPER_COLUMNS
@@ -178,6 +179,12 @@ def detecter_maison_exacte(texte_complet, lien="", fallback="Maison de Luxe"):
         if re.search(rf"\b{re.escape(groupe)}\b", tout):
             return groupe.upper() if groupe in {"lvmh"} else groupe.title()
 
+    # Sociétés ajoutées par papa dans la page Ciblage (ateliers, façonniers…).
+    # Mot entier et 4 lettres minimum : « SIS » ne doit pas sortir de « analysis ».
+    cible = ciblage.societe_reconnue(tout, longueur_min=4)
+    if cible:
+        return cible["nom"]
+
     match_domaine = re.search(r"https?://(?:www\.|careers\.|jobs\.|talents\.|join\.)?([a-z0-9-]+)\.", str(lien).lower())
     if match_domaine:
         nom_dom = match_domaine.group(1)
@@ -219,42 +226,18 @@ def valider_et_classer_offre(titre, entreprise, contexte="", est_post=False, lie
     if not (a_niveau_direction and a_metier_cible):
         return None
 
-    secteurs = []
+    # Secteurs et mots-clés : modifiables dans la page « Ciblage » (ciblage.json).
+    secteurs = ciblage.secteurs_detectes(tout_low)
 
-    if any(m in tout_low for m in [
-        "horloger", "watchmaking", "orolog", "rolex", "tudor", "patek", "audemars",
-        "omega", "swatch", "breitling", "tag heuer", "hublot", "zenith",
-        "vacheron", "jaeger", "iwc", "panerai", "richard mille", "breguet",
-        "blancpain", "longines", "parmigiani", "acrotec", "sellita", "soprod",
-        "kenissi", "vaucher", "glashütte", "rado", "mido", "hamilton", "tissot"
-    ]):
-        secteurs.append("Horlogerie")
+    # Employeur = société ciblée : on ajoute son secteur (ex. Tolomei -> Maroquinerie).
+    cible = ciblage.societe_reconnue(entreprise)
+    if cible and cible.get("secteur") and cible["secteur"] not in secteurs:
+        secteurs.append(cible["secteur"])
 
-    if any(m in tout_low for m in [
-        "joaill", "bijou", "jewelry", "jewellery", "gioiell", "haute joaillerie",
-        "van cleef", "boucheron", "chaumet", "bulgari", "bvlgari", "tiffany",
-        "fred", "messika", "pomellato", "dinh van", "mauboussin", "buccellati",
-        "damiani", "repossi", "qeelin", "graff", "harry winston"
-    ]):
-        secteurs.append("Joaillerie / Bijouterie")
-
-    if any(m in tout_low for m in [
-        "textile", "couture", "haute couture", "maroquinerie", "pelletteria",
-        "leather goods", "prêt-à-porter", "pret-a-porter", "soie", "cachemire",
-        "hermès", "hermes", "chanel", "dior", "louis vuitton", "gucci", "prada",
-        "moncler", "saint laurent", "bottega veneta", "balenciaga", "celine",
-        "loewe", "loro piana", "brunello cucinelli", "zegna", "armani", "valentino", "karl lagerfeld",
-        "fendi", "longchamp", "gruppo florence", "minerva hub", "maroquinerie thomas",
-        "delvaux", "goyard", "moynat", "berluti", "jacquemus", "isabel marant", "chloé", "alaïa"
-    ]):
-        secteurs.append("Textile / Couture")
-
-    if any(m in tout_low for m in [
-        "luxe", "luxury", "lusso", "artisanat d'art", "artisanat d'exception",
-        "lvmh", "kering", "richemont", "cartier", "chopard", "piaget", "guerlain", "puig"
-    ]) or any(maison in ent_low for maison in MAISONS_ET_MANUFACTURES):
-        if "Luxe" not in secteurs:
-            secteurs.append("Luxe")
+    # Toute maison connue du référentiel ou du ciblage compte comme « Luxe ».
+    if (cible or any(maison in ent_low for maison in MAISONS_ET_MANUFACTURES)) \
+            and ciblage.SECTEUR_LUXE not in secteurs:
+        secteurs.append(ciblage.SECTEUR_LUXE)
 
     if not secteurs:
         return None
@@ -699,7 +682,9 @@ def _executer_collecte(providers, output, report, signals_output, linkedin):
         progress.step('Signaux marche')
         try:
             from market_signals import update_signals
-            result.update(update_signals(signals_output, MAISONS_ET_MANUFACTURES))
+            societes = MAISONS_ET_MANUFACTURES + [n for soc in ciblage.charger()['societes']
+                                                  for n in ciblage.noms_societe(soc)]
+            result.update(update_signals(signals_output, societes))
         except Exception as exc:
             print(f'⚠️ [Signaux marche] {type(exc).__name__}')
             result['signaux_erreur'] = type(exc).__name__

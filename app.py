@@ -16,10 +16,11 @@ import streamlit as st
 from link_health import check_link
 from matching import canonical_url
 from notifications import CLOSED, collect_alerts
-from scoring import DEFAULT_PREFERENCES, calculate_score
+from scoring import calculate_score
 from source_catalog import SEARCH_SITES, NEWS_SITES, MANUAL_OR_RESTRICTED, catalog_totals
 from sources_plus import read_sources_config
 from market_signals import signal_guidance
+import ciblage
 from storage import (CRMStore, ConcurrentEditError, CONTACT_KINDS, MANUAL_SOURCES,
                      PRIORITIES, STATUSES, TARGET_STATUSES)
 
@@ -30,7 +31,7 @@ STATUS_LABELS = {
     "Entretien final / Shortlist": "Entretien final / Shortlist",
     "Refuse / Sans suite": "Refusé / Sans suite", "Ecarte": "Écarté",
 }
-PAGES = ["Tableau de bord", "Pipeline", "Relances", "Signaux marché", "Coulisses", "Réglages"]
+PAGES = ["Tableau de bord", "Pipeline", "Relances", "Signaux marché", "Ciblage", "Coulisses", "Réglages"]
 
 st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="◆", layout="wide")
 st.markdown("""
@@ -205,9 +206,12 @@ if "notice" in st.session_state:
     st.success(st.session_state.pop("notice"))
 
 prefs = store.preferences()
+# Score : profil de Réglages + secteurs prioritaires et sociétés « Haute » de la page Ciblage.
+cib = ciblage.charger()
+prefs_score = ciblage.preferences_effectives(prefs, cib)
 df = store.list_offers()
 if not df.empty:
-    scored = [calculate_score(r, prefs) for r in df.to_dict("records")]
+    scored = [calculate_score(r, prefs_score) for r in df.to_dict("records")]
     df["score"] = [v[0] for v in scored]
     df["why_score"] = [" • ".join(v[1]) for v in scored]
     df["is_closed"] = df["status"].isin(CLOSED)
@@ -316,9 +320,15 @@ selected_statuses = st.sidebar.multiselect(
     "Statut", STATUSES, default=STATUSES, key="f_statuses", format_func=lambda s: STATUS_LABELS.get(s, s)
 )
 selected_priorities = st.sidebar.multiselect("Priorité", PRIORITIES, default=PRIORITIES, key="f_priorities")
-selected_sector = st.sidebar.selectbox(
-    "Secteur", ["Tous", "Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"], key="f_sector"
-)
+SECTEURS = ciblage.noms_secteurs(cib)
+if not df.empty:
+    for _val in df["sector"].dropna().astype(str):
+        for _sect in (x.strip() for x in _val.split(",")):
+            if _sect and _sect not in SECTEURS:
+                SECTEURS.append(_sect)
+if st.session_state.get("f_sector") not in (None, "Tous", *SECTEURS):
+    st.session_state["f_sector"] = "Tous"  # secteur renommé ou supprimé dans Ciblage
+selected_sector = st.sidebar.selectbox("Secteur", ["Tous", *SECTEURS], key="f_sector")
 min_score = st.sidebar.slider("Score minimum", 0, 100, 0, step=5, key="f_min_score")
 search = st.sidebar.text_input("Recherche", placeholder="Poste, maison, contact…", key="f_search")
 st.sidebar.button("Réinitialiser les filtres", on_click=reset_filters, width="stretch")
@@ -589,7 +599,7 @@ def offer_detail_and_add():
                 st.markdown(f"### {current['title']}")
                 st.caption(f"{current['company']} · {current['country']} · {current['sector']}")
             with dr:
-                score, reasons = calculate_score(current, prefs)
+                score, reasons = calculate_score(current, prefs_score)
                 st.markdown(score_badge(score, "Compatibilité"), unsafe_allow_html=True)
             with st.expander("Comprendre le score", expanded=False):
                 st.write(" · ".join(reasons))
@@ -643,7 +653,7 @@ def offer_detail_and_add():
             m_title = b.text_input("Intitulé du poste *")
             c, d, e = st.columns(3)
             m_country = c.selectbox("Pays", ["France", "Suisse", "Italie"])
-            m_sector = d.selectbox("Secteur", ["Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"])
+            m_sector = d.selectbox("Secteur", SECTEURS)
             m_priority = e.selectbox("Priorité", PRIORITIES, index=1)
             m_status = st.selectbox("Statut initial", STATUSES, index=1)
             m_contact = st.text_input("Contact / Chasseur")
@@ -853,6 +863,142 @@ def entretiens_tab():
         st.rerun()
 
 
+def _secret_ou(defaut: str, cle: str) -> str:
+    return secret(cle) or defaut
+
+
+def ciblage_page():
+    """Secteurs, sociétés et recherche LinkedIn : modifiables sans toucher au code."""
+    st.subheader("Ciblage du radar")
+    st.caption("Ce que le radar cherche et ce qui compte dans le score. Modifie les tableaux, "
+               "puis clique sur **Enregistrer le ciblage**. Le prochain scan en tient compte.")
+    cfg = ciblage.charger()
+    v = st.session_state.get("ciblage_v", 0)  # change à chaque enregistrement : repart du fichier
+    tab_sect, tab_soc, tab_li = st.tabs(["Secteurs", "Sociétés", "Recherche LinkedIn"])
+
+    with tab_sect:
+        st.caption("Une ligne par secteur. Les mots-clés sont cherchés dans le titre, l'entreprise "
+                   "et le texte de l'annonce. Un début de mot suffit : « joaill » couvre joaillerie, "
+                   "joaillier et joaillière. **Prioritaire** = +15 points au score.")
+        sect_df = pd.DataFrame([{"Secteur": s["nom"], "Prioritaire": s["prioritaire"],
+                                 "Mots-clés": ", ".join(s["mots_cles"])} for s in cfg["secteurs"]])
+        sect_edit = st.data_editor(
+            sect_df, key=f"cib_sect_{v}", num_rows="dynamic", hide_index=True, width="stretch",
+            column_config={
+                "Secteur": st.column_config.TextColumn("Secteur", required=True, width="medium"),
+                "Prioritaire": st.column_config.CheckboxColumn("Prioritaire", default=True, width="small"),
+                "Mots-clés": st.column_config.TextColumn("Mots-clés (séparés par des virgules)",
+                                                         width="large"),
+            })
+    noms_sect = [str(x).strip() for x in sect_edit["Secteur"].dropna() if str(x).strip()]
+
+    with tab_soc:
+        st.caption("**Haute** = +10 points au score et recherche dédiée par le radar "
+                   "(8 sociétés par jour, en rotation). **Autres noms** = variantes à reconnaître, "
+                   "séparées par des virgules (ex. Dior pour Christian Dior).")
+        soc_df = pd.DataFrame([{"Société": s["nom"], "Autres noms": ", ".join(s["alias"]),
+                                "Secteur": s["secteur"], "Type": s["type"], "Priorité": s["priorite"]}
+                               for s in cfg["societes"]],
+                              columns=["Société", "Autres noms", "Secteur", "Type", "Priorité"])
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Sociétés suivies", len(soc_df))
+        m2.metric("Priorité haute", int((soc_df["Priorité"] == "Haute").sum()))
+        m3.metric("Ateliers / façonniers", int((soc_df["Type"] == "Atelier / façonnier").sum()))
+        soc_edit = st.data_editor(
+            soc_df, key=f"cib_soc_{v}", num_rows="dynamic", hide_index=True, width="stretch",
+            height=min(38 * (len(soc_df) + 2), 720),
+            column_config={
+                "Société": st.column_config.TextColumn("Société", required=True, width="medium"),
+                "Autres noms": st.column_config.TextColumn("Autres noms", width="medium"),
+                "Secteur": st.column_config.SelectboxColumn("Secteur", options=noms_sect),
+                "Type": st.column_config.SelectboxColumn("Type", options=ciblage.TYPES_SOCIETE,
+                                                         default="Maison"),
+                "Priorité": st.column_config.SelectboxColumn("Priorité", options=ciblage.PRIORITES,
+                                                             default="Haute", required=True),
+            })
+
+    with tab_li:
+        st.caption("Un terme par ligne. Dans un même bloc, les termes sont reliés par **OU**. "
+                   "Les blocs sont reliés par **ET**. Un bloc vide est ignoré.")
+        li = cfg["linkedin"]
+        a, b = st.columns(2)
+        postes = a.text_area("Postes", "\n".join(li["postes"]), height=235, key=f"cib_li_postes_{v}")
+        fonctions = b.text_area("Fonctions", "\n".join(li["fonctions"]), height=235,
+                                key=f"cib_li_fonctions_{v}")
+        c, d = st.columns(2)
+        secteurs_li = c.text_area("Secteurs", "\n".join(li["secteurs"]), height=235,
+                                  key=f"cib_li_secteurs_{v}")
+        signaux = d.text_area("Signaux de recrutement (posts uniquement)", "\n".join(li["signaux"]),
+                              height=235, key=f"cib_li_signaux_{v}")
+        exclure = st.text_area("À exclure (NOT), facultatif", "\n".join(li["exclure"]), height=80,
+                               key=f"cib_li_exclure_{v}")
+
+    # Configuration telle qu'affichée à l'écran (avant enregistrement).
+    brouillon = {
+        "secteurs": [{"nom": r.get("Secteur"), "prioritaire": bool(r.get("Prioritaire")),
+                      "mots_cles": r.get("Mots-clés") or ""}
+                     for r in sect_edit.to_dict("records")],
+        "societes": [{"nom": r.get("Société"), "alias": r.get("Autres noms") or "",
+                      "secteur": r.get("Secteur") or "", "type": r.get("Type") or "Maison",
+                      "priorite": r.get("Priorité") or "Haute"}
+                     for r in soc_edit.to_dict("records")],
+        "linkedin": {"postes": postes, "fonctions": fonctions, "secteurs": secteurs_li,
+                     "signaux": signaux, "exclure": exclure},
+    }
+    propre, avertissements = ciblage.valider(brouillon)
+
+    with tab_li:
+        st.markdown("##### Requête générée")
+        q_posts = ciblage.requete_linkedin(propre)
+        q_offres = ciblage.requete_linkedin(propre, avec_signaux=False)
+        if not q_posts:
+            st.info("Remplis au moins un bloc pour générer la requête.")
+        else:
+            st.code(q_posts, language=None, wrap_lines=True)
+            l1, l2 = st.columns(2)
+            l1.link_button("Chercher dans les posts LinkedIn", ciblage.lien_linkedin_posts(q_posts),
+                           width="stretch")
+            l2.link_button("Chercher dans les offres LinkedIn", ciblage.lien_linkedin_offres(q_offres),
+                           width="stretch")
+            st.caption("Les offres n'utilisent pas le bloc « Signaux » : une annonce ne contient "
+                       "pas « mandat » ni « opportunité ». Il faut être connecté à LinkedIn.")
+
+    st.divider()
+    modifie = propre != cfg
+    if avertissements:
+        st.warning("**À vérifier avant d'enregistrer**\n\n" +
+                   "\n".join(f"- {x}" for x in avertissements))
+    s1, s2, s3 = st.columns([1.3, 1, 2.2], vertical_alignment="center")
+    enregistrer = s1.button("Enregistrer le ciblage", type="primary", disabled=not modifie,
+                            width="stretch")
+    if s2.button("Annuler les modifications", disabled=not modifie, width="stretch"):
+        st.session_state["ciblage_v"] = v + 1
+        st.rerun()
+    s3.caption("Modifications non enregistrées." if modifie else "Tout est enregistré.")
+
+    if enregistrer:
+        try:
+            propre, _ = ciblage.enregistrer(propre)
+        except OSError as exc:
+            st.error(f"Impossible d'écrire ciblage.json : {exc}")
+            return
+        message = "Ciblage enregistré. Le bouton « Rechercher de nouvelles offres » l'utilise déjà."
+        token = secret("CIBLAGE_GITHUB_TOKEN")
+        if token:
+            ok, detail = ciblage.publier_sur_github(
+                propre, token, _secret_ou("Yioux37/crm-emploi", "CIBLAGE_GITHUB_REPO"),
+                _secret_ou("main", "CIBLAGE_GITHUB_BRANCH"))
+            message += " " + detail if ok else f" Attention : {detail} Le scan GitHub garde l'ancien ciblage."
+        st.session_state["notice"] = message
+        st.session_state["ciblage_v"] = v + 1
+        st.rerun()
+
+    if not secret("CIBLAGE_GITHUB_TOKEN"):
+        st.caption("Le ciblage est enregistré sur cet ordinateur, dans `ciblage.json`. "
+                   "Le scan automatique GitHub ne le verra qu'une fois le fichier poussé sur GitHub. "
+                   "Pour un envoi automatique, ajoute le secret `CIBLAGE_GITHUB_TOKEN`.")
+
+
 # ============================================================================
 #  Routage des pages
 # ============================================================================
@@ -1041,6 +1187,9 @@ elif page == "Signaux marché":
     st.markdown("**Actions conseillées** : repérer la maison, identifier le besoin métier possible, "
                 "puis préparer une approche personnalisée (sans collecte automatisée de contacts privés).")
 
+elif page == "Ciblage":
+    ciblage_page()
+
 elif page == "Coulisses":
     st.subheader("Coulisses du radar")
     st.caption("Où le radar cherche, ce qui a répondu, et le bilan chiffré de ta recherche.")
@@ -1194,11 +1343,11 @@ elif page == "Réglages":
     with st.form("preferences"):
         countries = st.multiselect("Pays prioritaires", ["France", "Suisse", "Italie"],
                                    default=prefs.get("preferred_countries", []))
-        sectors = st.multiselect("Secteurs prioritaires", DEFAULT_PREFERENCES["preferred_sectors"],
-                                 default=prefs.get("preferred_sectors", []))
+        st.caption("Secteurs prioritaires : à cocher dans la page **Ciblage**.")
+        sectors = prefs.get("preferred_sectors", [])
         keywords = st.text_area("Mots-clés métier (séparés par des virgules)",
                                 value=prefs.get("priority_keywords", ""))
-        brands = st.text_area("Maisons favorites (séparées par des virgules)",
+        brands = st.text_area("Autres maisons favorites (en plus des sociétés « Haute » du Ciblage)",
                               value=prefs.get("preferred_brands", ""))
         threshold = st.slider("Seuil pour une alerte 'offre prioritaire'", 50, 100,
                               int(prefs.get("alert_threshold", 85)), step=5)

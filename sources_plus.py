@@ -414,6 +414,34 @@ def fetch_public_ats(config: dict | None = None, session=None, stats: dict | Non
     return jobs
 
 
+def _cibles_prioritaires(day: date | None = None) -> list[tuple]:
+    """Sociétés « Haute » de la page Ciblage absentes du catalogue, en rotation quotidienne.
+
+    Recherche ouverte sur leur nom (toutes plateformes), comme les grandes maisons.
+    CIBLAGE_MAX_QUERIES (8 par défaut) requêtes par jour : 24 sociétés sont donc
+    toutes cherchées en 3 jours, sans priver les portails en rotation.
+    Un nom de 3 lettres ou moins (« SIS », « BFL ») est trop ambigu pour un moteur :
+    il reste reconnu dans les annonces, mais ne déclenche pas de recherche dédiée.
+    """
+    try:
+        import ciblage
+        societes = ciblage.societes_par_priorite('Haute')
+        quota = int(os.getenv('CIBLAGE_MAX_QUERIES', '8'))
+    except Exception:
+        return []
+    connus = {_fold(_GROUP_SUFFIX.sub('', name)).strip() for name, *_ in SEARCH_SITES}
+    extra = []
+    for soc in societes:
+        cles = {_fold(n).strip() for n in ciblage.noms_societe(soc)}
+        cle = _fold(soc['nom']).strip()
+        if len(cle) <= 3 or cles & connus:
+            continue
+        connus.add(cle)
+        pseudo_domaine = re.sub(r'[^a-z0-9]+', '-', cle).strip('-') + '.ciblage'
+        extra.append((soc['nom'], pseudo_domaine, 'Sites Maisons de Luxe', 'fr', True))
+    return ciblage.rotation_du_jour(extra, quota, day)
+
+
 def select_search_sites(day: date | None = None, budget: int | None = None) -> list[tuple]:
     """Interroge les sites incontournables chaque jour, puis fait tourner les autres."""
     day = day or date.today()
@@ -424,7 +452,7 @@ def select_search_sites(day: date | None = None, budget: int | None = None) -> l
             budget = 60
     # 39 sites quotidiens (12 portails + 3 LinkedIn Jobs + 24 maisons) + une part tournante.
     budget = max(0, min(80, budget))
-    always = [s for s in SEARCH_SITES if s[4]]
+    always = [s for s in SEARCH_SITES if s[4]] + _cibles_prioritaires(day)
     rotating = [s for s in SEARCH_SITES if not s[4]]
     if budget <= len(always):
         return always[:budget]

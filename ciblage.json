@@ -1,0 +1,523 @@
+{
+  "version": 1,
+  "secteurs": [
+    {
+      "nom": "Maroquinerie",
+      "prioritaire": true,
+      "mots_cles": [
+        "maroquinerie",
+        "maroquinier",
+        "maroquinière",
+        "leather goods",
+        "pelletteria",
+        "sellerie",
+        "hermès",
+        "louis vuitton",
+        "goyard",
+        "moynat",
+        "delvaux",
+        "longchamp",
+        "berluti",
+        "maroquinerie thomas",
+        "tolomei",
+        "riolland",
+        "sofoma"
+      ]
+    },
+    {
+      "nom": "Horlogerie",
+      "prioritaire": true,
+      "mots_cles": [
+        "horlogerie",
+        "horloger",
+        "horlogère",
+        "watchmaking",
+        "orolog",
+        "rolex",
+        "tudor",
+        "patek",
+        "audemars",
+        "omega",
+        "swatch",
+        "breitling",
+        "tag heuer",
+        "hublot",
+        "zenith",
+        "vacheron",
+        "jaeger",
+        "iwc",
+        "panerai",
+        "richard mille",
+        "breguet",
+        "blancpain",
+        "longines",
+        "parmigiani",
+        "acrotec",
+        "sellita",
+        "soprod",
+        "kenissi",
+        "vaucher",
+        "glashütte",
+        "rado",
+        "mido",
+        "hamilton",
+        "tissot",
+        "baume & mercier"
+      ]
+    },
+    {
+      "nom": "Joaillerie / Bijouterie",
+      "prioritaire": true,
+      "mots_cles": [
+        "joaill",
+        "bijou",
+        "haute joaillerie",
+        "maison joaillière",
+        "jewelry",
+        "jewellery",
+        "gioiell",
+        "van cleef",
+        "boucheron",
+        "chaumet",
+        "bulgari",
+        "bvlgari",
+        "tiffany",
+        "fred",
+        "messika",
+        "pomellato",
+        "dinh van",
+        "mauboussin",
+        "buccellati",
+        "damiani",
+        "repossi",
+        "qeelin",
+        "graff",
+        "harry winston",
+        "mellerio"
+      ]
+    },
+    {
+      "nom": "Textile / Couture",
+      "prioritaire": true,
+      "mots_cles": [
+        "textile",
+        "couture",
+        "haute couture",
+        "prêt-à-porter",
+        "ready-to-wear",
+        "soie",
+        "cachemire",
+        "chanel",
+        "dior",
+        "gucci",
+        "prada",
+        "moncler",
+        "saint laurent",
+        "bottega veneta",
+        "balenciaga",
+        "celine",
+        "loewe",
+        "loro piana",
+        "brunello cucinelli",
+        "zegna",
+        "armani",
+        "valentino",
+        "karl lagerfeld",
+        "fendi",
+        "gruppo florence",
+        "minerva hub",
+        "jacquemus",
+        "isabel marant",
+        "chloé",
+        "alaïa"
+      ]
+    },
+    {
+      "nom": "Luxe",
+      "prioritaire": true,
+      "mots_cles": [
+        "luxe",
+        "luxury",
+        "lusso",
+        "artisanat d'art",
+        "artisanat d'exception",
+        "savoir-faire d'exception",
+        "maison de luxe",
+        "lvmh",
+        "kering",
+        "richemont",
+        "cartier",
+        "chopard",
+        "piaget",
+        "guerlain",
+        "puig"
+      ]
+    }
+  ],
+  "societes": [
+    {
+      "nom": "Hermès",
+      "alias": [
+        "Maison Hermès"
+      ],
+      "secteur": "Maroquinerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Chanel",
+      "alias": [],
+      "secteur": "Textile / Couture",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Christian Dior",
+      "alias": [
+        "Dior"
+      ],
+      "secteur": "Textile / Couture",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Louis Vuitton",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Goyard",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Tolomei",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Maroquinerie Thomas",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "SIS",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Riolland",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Sofoma",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Fleurus",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Cotte",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "BFL",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Bartel",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Hanna",
+      "alias": [],
+      "secteur": "Maroquinerie",
+      "type": "Atelier / façonnier",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Chaumet",
+      "alias": [
+        "Maison Chaumet"
+      ],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Van Cleef & Arpels",
+      "alias": [
+        "Van Cleef"
+      ],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Bulgari",
+      "alias": [
+        "Bvlgari"
+      ],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Buccellati",
+      "alias": [],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Cartier",
+      "alias": [],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Boucheron",
+      "alias": [],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Mellerio",
+      "alias": [
+        "Mellerio dits Meller"
+      ],
+      "secteur": "Joaillerie / Bijouterie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "LVMH",
+      "alias": [],
+      "secteur": "Luxe",
+      "type": "Groupe",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Richemont",
+      "alias": [],
+      "secteur": "Luxe",
+      "type": "Groupe",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Kering",
+      "alias": [],
+      "secteur": "Luxe",
+      "type": "Groupe",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Rolex",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Audemars Piguet",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Vacheron Constantin",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Patek Philippe",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Omega",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Blancpain",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Breguet",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Jaeger-LeCoultre",
+      "alias": [
+        "Jaeger LeCoultre"
+      ],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Chopard",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Breitling",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "TAG Heuer",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "IWC",
+      "alias": [
+        "IWC Schaffhausen"
+      ],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Hublot",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Tissot",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Piaget",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Baume & Mercier",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Longines",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Richard Mille",
+      "alias": [],
+      "secteur": "Horlogerie",
+      "type": "Maison",
+      "priorite": "Haute"
+    },
+    {
+      "nom": "Swatch",
+      "alias": [
+        "Swatch Group"
+      ],
+      "secteur": "Horlogerie",
+      "type": "Groupe",
+      "priorite": "Haute"
+    }
+  ],
+  "linkedin": {
+    "postes": [
+      "Directeur",
+      "Directrice",
+      "Direction",
+      "Head of",
+      "VP",
+      "Management de transition",
+      "Manager de transition",
+      "Intérim"
+    ],
+    "fonctions": [
+      "Opérations",
+      "Supply Chain",
+      "Industriel",
+      "Production",
+      "Manufacturing",
+      "Logistique"
+    ],
+    "secteurs": [
+      "Luxe",
+      "Maroquinerie",
+      "Horlogerie",
+      "Horloger",
+      "Horlogère",
+      "Joaillerie",
+      "Haute joaillerie",
+      "Prêt-à-porter",
+      "Couture"
+    ],
+    "signaux": [
+      "Mandat",
+      "Recrute",
+      "Recrutement",
+      "Opportunité"
+    ],
+    "exclure": []
+  }
+}

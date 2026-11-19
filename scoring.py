@@ -6,7 +6,7 @@ from matching import simplify
 
 DEFAULT_PREFERENCES = {
     "preferred_countries": ["France", "Suisse", "Italie"],
-    "preferred_sectors": ["Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"],
+    "preferred_sectors": ["Horlogerie", "Joaillerie / Bijouterie", "Maroquinerie", "Textile / Couture", "Luxe"],
     "preferred_brands": "",
     "priority_keywords": "operations, opérations, excellence opérationnelle, supply chain, manufacture, manufacturing, production, atelier, industriel, planning, logistique, procurement, achats",
     "alert_threshold": 85,
@@ -68,7 +68,8 @@ def calculate_score(offer: dict, preferences: dict | None = None, today: date | 
         reasons.append("Pays hors préférences (+4)")
 
     brands = _tokens(prefs.get("preferred_brands", ""))
-    if any(b in company for b in brands):
+    padded = f" {company} "
+    if any(f" {b} " in padded for b in brands):
         score += 10
         reasons.append("Maison favorite (+10)")
     elif company and company not in ("sites maisons de luxe", "cabinets de recrutement", "maison de luxe"):

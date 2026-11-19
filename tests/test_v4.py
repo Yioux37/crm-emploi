@@ -48,7 +48,7 @@ class V4Sources(unittest.TestCase):
             chosen = select_search_sites(date(2026, 11, 17) + timedelta(days=offset), budget=60)
             self.assertEqual(len(chosen), 60)
             seen.update(site[1] for site in chosen)
-        self.assertEqual(len(seen), len(SEARCH_SITES))
+        self.assertTrue({site[1] for site in SEARCH_SITES}.issubset(seen))
 
     def test_greenhouse_only_public_posts(self):
         session = Session({'jobs': [

@@ -66,6 +66,8 @@ HOUSE_QUERIES = ['Hermès', 'Chanel', 'Louis Vuitton', 'Dior', 'Cartier', 'Rolex
                  'TAG Heuer', 'Swatch Group', 'Vacheron Constantin', 'Van Cleef & Arpels',
                  'Zegna', 'Valentino']
 
+CIBLAGE_HOUSES_PER_RUN = 4
+
 
 def build_queries() -> list[tuple[str, dict]]:
     """Liste (libelle de diagnostic, parametres) dans l'ordre d'execution."""
@@ -75,7 +77,22 @@ def build_queries() -> list[tuple[str, dict]]:
             queries.append((f'LinkedIn direct / {kw} ({country})',
                             {'keywords': kw, 'location': country, 'f_TPR': LAST_30_DAYS,
                              'f_E': SENIOR_LEVELS, 'start': 0}))
-    for house in HOUSE_QUERIES:
+    houses = list(HOUSE_QUERIES)
+    try:
+        # Sociétés « Haute » de la page Ciblage : 4 par lancement, en rotation, pour
+        # rester sous la limite de requêtes (au-delà, LinkedIn bloque l'accès invité).
+        import ciblage
+        known = {ciblage.fold(h) for h in houses}
+        extra = []
+        for soc in ciblage.societes_par_priorite('Haute'):
+            noms = {ciblage.fold(n) for n in ciblage.noms_societe(soc)}
+            if len(ciblage.fold(soc['nom'])) > 3 and not noms & known:
+                known |= noms
+                extra.append(soc['nom'])
+        houses += ciblage.rotation_du_jour(extra, CIBLAGE_HOUSES_PER_RUN)
+    except Exception:
+        pass
+    for house in houses:
         queries.append((f'LinkedIn direct / {house}',
                         {'keywords': house, 'location': 'Europe', 'f_TPR': LAST_30_DAYS,
                          'f_E': DIRECTION_LEVELS, 'start': 0}))

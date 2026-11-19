@@ -18,6 +18,7 @@ Un CRM personnel pour repérer les postes de direction, choisir les offres à ex
 | Examiner un poste | **Opportunités** | Filtre par pays, ouvre la fiche et vérifie l’annonce d’origine. |
 | Suivre une candidature | **Opportunités** | Mets à jour le statut, ajoute le contact et tes notes, puis renseigne **Prochaine action** au format `AAAA-MM-JJ`. |
 | Reprendre un échange | **Relances** | Retrouve la fiche à échéance. Après l’échange, fixe la prochaine date ou archive la candidature si le suivi est terminé. |
+| Changer les secteurs, sociétés ou la recherche LinkedIn | **Ciblage** | Modifie les tableaux, puis **Enregistrer le ciblage**. Tout est stocké dans `ciblage.json`, lu par le scan et par le score. |
 | Identifier une maison à contacter | **Signaux marché** | Consulte les investissements, extensions de manufactures et nominations. Un brouillon de prise de contact peut être personnalisé avant envoi. |
 
 Le **score sur 100** sert à décider quelle fiche ouvrir en premier. Le barème accorde 35 points au niveau du poste, 25 au métier, 15 au secteur, 10 au pays, 10 à la maison et 5 à la fraîcheur de détection. Tu peux ajuster tes préférences et le seuil d’alerte dans **Préférences**. Le score mesure l’adéquation à tes critères. Les chances de recrutement restent inconnues.

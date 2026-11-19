@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from email.message import EmailMessage
 
 from scoring import calculate_score
+from ciblage import preferences_effectives
 from storage import CRMStore
 
 CLOSED = {"Refuse / Sans suite", "Ecarte"}
@@ -15,7 +16,7 @@ CLOSED = {"Refuse / Sans suite", "Ecarte"}
 
 def collect_alerts(store: CRMStore, now: date | None = None) -> dict:
     now = now or date.today()
-    prefs = store.preferences()
+    prefs = preferences_effectives(store.preferences())
     df = store.list_offers()
     high = []
     due = []
