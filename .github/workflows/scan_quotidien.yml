@@ -28,6 +28,10 @@ jobs:
     steps:
       - name: Recuperer le depot
         uses: actions/checkout@v4
+        with:
+          # Toujours le dernier commit de la branche, meme sur un "Re-run jobs"
+          # (sinon GitHub reprend le commit du run d'origine, parfois vieux de plusieurs heures).
+          ref: ${{ github.ref_name }}
       - name: Configurer Python
         uses: actions/setup-python@v5
         with:
@@ -48,9 +52,17 @@ jobs:
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add offres_detectees.csv signaux_marche.csv scan_rapport.json
+          FICHIERS="offres_detectees.csv signaux_marche.csv scan_rapport.json"
+          # 1. On met de cote le resultat du scan.
+          mkdir -p /tmp/scan && cp $FICHIERS /tmp/scan/
+          # 2. On se cale sur la branche a jour (y compris un scan pousse depuis le Mac pendant ce run).
+          git fetch origin "${GITHUB_REF_NAME}"
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+          # 3. On remet le scan par-dessus : fichiers generes, le plus recent fait foi.
+          #    Pas de rebase, donc pas de conflit possible sur ces fichiers.
+          cp /tmp/scan/* .
+          git add $FICHIERS
           if ! git diff --cached --quiet; then
             git commit -m "Veille quotidienne: annonces publiques"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
