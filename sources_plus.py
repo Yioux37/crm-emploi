@@ -23,6 +23,7 @@ import requests
 import progress
 from bs4 import BeautifulSoup
 
+from matching import est_une_offre
 from search_gateway import default_search_client
 
 ROOT = Path(__file__).resolve().parent
@@ -477,7 +478,10 @@ def looks_like_job_page(url: str) -> bool:
     if host == 'linkedin.com' or host.endswith('.linkedin.com'):
         # Seules les fiches d'offre publiques sont acceptees (pas /in/, /posts/, /company/).
         return path.startswith('/jobs/view/')
-    return not any(host == h or host.endswith('.' + h) for h in _NON_JOB_HOSTS)
+    if any(host == h or host.endswith('.' + h) for h in _NON_JOB_HOSTS):
+        return False
+    # Presse, bourse, organigrammes (The Org...), pages de resultats.
+    return est_une_offre('', url)
 
 
 def build_index_query(name: str, domain: str, source: str, term: str) -> str:
@@ -529,6 +533,9 @@ def fetch_indexed_jobs(day: date | None = None, budget: int | None = None,
                     for hit in hits:
                         url = _safe_url(hit.get('href') or hit.get('url'))
                         if not url or not looks_like_job_page(url):
+                            continue
+                        # Ex. « LVMH nomme X directeur industriel » : un article, pas une offre.
+                        if not est_une_offre(hit.get('title'), url):
                             continue
                         host = (urlsplit(url).hostname or '').lower()
                         if open_brand:

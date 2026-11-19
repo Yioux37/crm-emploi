@@ -24,6 +24,12 @@ from storage import (CRMStore, ConcurrentEditError, CONTACT_KINDS, MANUAL_SOURCE
                      PRIORITIES, STATUSES, TARGET_STATUSES)
 
 ROOT = Path(__file__).resolve().parent
+STATUS_LABELS = {
+    "A analyser": "À analyser", "A postuler": "À postuler", "Candidature envoyee": "Candidature envoyée",
+    "Reseau / Approche directe": "Réseau / Approche directe", "Entretien 1": "Entretien 1",
+    "Entretien final / Shortlist": "Entretien final / Shortlist",
+    "Refuse / Sans suite": "Refusé / Sans suite", "Ecarte": "Écarté",
+}
 PAGES = ["Tableau de bord", "Pipeline", "Relances", "Signaux marché", "Coulisses", "Réglages"]
 
 st.set_page_config(page_title="CRM Carrière | Direction & Supply Chain", page_icon="◆", layout="wide")
@@ -100,6 +106,37 @@ a, a:visited{ color:var(--green); }
 [data-testid="stVerticalBlockBorderWrapper"]{ border-radius:12px; }
 [data-testid="stDataFrame"]{ border:1px solid var(--line); border-radius:10px; }
 hr{ border-color:var(--line); }
+
+/* Badge de score : rond, lisible en entier, couleur selon le niveau */
+.score-badge{ width:58px; height:58px; border-radius:50%; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:1.55rem; font-weight:600; line-height:1; border:2px solid; }
+.score-badge small{ font-family:'Inter',sans-serif; font-size:.55rem; letter-spacing:.8px;
+  color:inherit !important; opacity:.75; margin-top:2px; }
+.tier-high{ color:#1F4D3A; border-color:#1F4D3A; background:#EEF4F0; }
+.tier-mid{ color:#8A6A1F; border-color:#C9A54A; background:#FBF6E9; }
+.tier-low{ color:#6E7A72; border-color:#C9D1CC; background:#F6F8F7; }
+
+/* Ligne d'offre compacte */
+.offer-title{ font-weight:600; font-size:1rem; color:var(--ink); line-height:1.3; }
+.offer-meta{ color:var(--sage); font-size:.83rem; margin-top:4px; }
+.pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:.72rem;
+  border:1px solid var(--line); background:#fff; color:var(--ink); margin-right:6px; }
+.pill-new{ background:#1F4D3A; border-color:#1F4D3A; color:#fff; }
+
+/* Frise d'avancement : une case par étape */
+.funnel{ display:flex; gap:8px; margin:6px 0 22px 0; flex-wrap:wrap; }
+.funnel-step{ flex:1 1 110px; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  background:var(--card); }
+.funnel-step .n{ font-family:'Cormorant Garamond',Georgia,serif; font-size:1.7rem; line-height:1; }
+.funnel-step .l{ font-size:.66rem; text-transform:uppercase; letter-spacing:1px; color:var(--sage); margin-top:4px; }
+.funnel-step.closed{ background:#F6F3F2; border-style:dashed; }
+.funnel-step.active{ border-color:var(--green); }
+
+/* En-tête de section d'étape dans le Pipeline */
+.stage-head{ display:flex; align-items:baseline; gap:10px; margin:18px 0 6px 0; }
+.stage-head .t{ font-family:'Cormorant Garamond',Georgia,serif; font-size:1.35rem; }
+.stage-head .c{ color:var(--sage); font-size:.85rem; }
 
 /* Épure : on masque le pied de page Streamlit */
 footer{ visibility:hidden; height:0; }
@@ -253,18 +290,30 @@ if st.sidebar.button("Actualiser le flux", width="stretch"):
 
 st.sidebar.divider()
 st.sidebar.subheader("Filtres")
+FILTER_KEYS = ("f_countries", "f_statuses", "f_priorities", "f_sector", "f_min_score", "f_search")
+
+
+def reset_filters():
+    """Callback : vide l'état des filtres AVANT que les widgets soient redessinés."""
+    for key in FILTER_KEYS:
+        st.session_state.pop(key, None)
+
+
+# Toutes les étapes sont affichées par défaut : les offres refusées ont
+# désormais leur propre tableau dans le Pipeline, elles ne polluent plus la liste.
 selected_countries = st.sidebar.multiselect(
-    "Pays", ["France", "Suisse", "Italie"], default=["France", "Suisse", "Italie"]
+    "Pays", ["France", "Suisse", "Italie"], default=["France", "Suisse", "Italie"], key="f_countries"
 )
 selected_statuses = st.sidebar.multiselect(
-    "Statut", STATUSES, default=[x for x in STATUSES if x not in CLOSED]
+    "Statut", STATUSES, default=STATUSES, key="f_statuses", format_func=lambda s: STATUS_LABELS.get(s, s)
 )
-selected_priorities = st.sidebar.multiselect("Priorité", PRIORITIES, default=PRIORITIES)
+selected_priorities = st.sidebar.multiselect("Priorité", PRIORITIES, default=PRIORITIES, key="f_priorities")
 selected_sector = st.sidebar.selectbox(
-    "Secteur", ["Tous", "Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"]
+    "Secteur", ["Tous", "Horlogerie", "Joaillerie / Bijouterie", "Textile / Couture", "Luxe"], key="f_sector"
 )
-min_score = st.sidebar.slider("Score minimum", 0, 100, 0, step=5)
-search = st.sidebar.text_input("Recherche", placeholder="Poste, maison, contact…")
+min_score = st.sidebar.slider("Score minimum", 0, 100, 0, step=5, key="f_min_score")
+search = st.sidebar.text_input("Recherche", placeholder="Poste, maison, contact…", key="f_search")
+st.sidebar.button("Réinitialiser les filtres", on_click=reset_filters, width="stretch")
 
 visible = df.copy()
 if not visible.empty:
@@ -280,14 +329,31 @@ if not visible.empty:
         mask &= search_match
     visible = visible[mask].sort_values(["score", "detected_on"], ascending=[False, False])
 
+n_hidden = len(df) - len(visible)
+
 st.title("CRM Candidatures")
 st.caption("Un espace privé pour repérer les opportunités, préparer les candidatures et ne manquer aucune relance.")
 
 if store.backup_error:
     st.warning("Une sauvegarde locale a échoué : " + store.backup_error)
 
+if n_hidden:
+    fc1, fc2 = st.columns([4, 1], vertical_alignment="center")
+    fc1.warning(f"**{n_hidden} offre(s) masquée(s)** par les filtres de la barre latérale "
+                f"({len(visible)} affichée(s) sur {len(df)}).")
+    fc2.button("Tout afficher", on_click=reset_filters, width="stretch", key="reset_top")
+
 if imported["legacy"]:
     st.info(f"{imported['legacy']} offre(s) importée(s) depuis l'ancien CSV. Tes notes et statuts sont conservés.")
+
+
+def table_height(n_rows: int) -> int:
+    """Hauteur qui affiche TOUTES les lignes (35 px par ligne + en-tête).
+
+    Avant : plafond à 640 px, donc ~15 lignes visibles et le reste caché
+    dans un défilement interne au tableau, peu visible.
+    """
+    return 35 * (max(n_rows, 1) + 1) + 3
 
 
 def offer_label(r) -> str:
@@ -314,15 +380,35 @@ def short_table(rows: pd.DataFrame, *, show_status: bool = True):
     )
 
 
+def score_badge(score: int) -> str:
+    """Badge rond : le score s'affiche EN ENTIER (st.metric le tronquait en « 9… »)."""
+    score = int(score)
+    tier = "tier-high" if score >= 85 else "tier-mid" if score >= 70 else "tier-low"
+    return f"<div class='score-badge {tier}'>{score}<small>/100</small></div>"
+
+
+def _esc(text: object) -> str:
+    """Échappe le HTML : un titre d'annonce ne doit jamais casser la page."""
+    import html
+    return html.escape(str(text or ""))
+
+
 def inline_offer_buttons(offers_subset: pd.DataFrame, prefix: str, limit: int = 5):
+    """Liste d'offres compacte : badge de score | poste + infos | bouton."""
+    new_cutoff = (date.today() - timedelta(days=3)).isoformat()
     for _, r in offers_subset.head(limit).iterrows():
         with st.container(border=True):
-            a, b, c = st.columns([6, 1.2, 1.5], vertical_alignment="center")
-            with a:
-                st.markdown(f"**{r['title']}**")
-                st.caption(f"{r['company']} · {r['country']} · {r['status']}")
-            b.metric("Score", f"{r['score']}/100", label_visibility="visible")
-            if c.button("Ouvrir la fiche", key=f"{prefix}_{r['id']}", width="stretch"):
+            a, b, c = st.columns([0.9, 6, 1.4], vertical_alignment="center")
+            a.markdown(score_badge(r["score"]), unsafe_allow_html=True)
+            pills = f"<span class='pill'>{_esc(STATUS_LABELS.get(r['status'], r['status']))}</span>"
+            if r["detected_on"] >= new_cutoff:
+                pills = "<span class='pill pill-new'>Nouveau</span>" + pills
+            b.markdown(
+                f"<div class='offer-title'>{_esc(r['title'])}</div>"
+                f"<div class='offer-meta'>{pills}{_esc(r['company'])} · {_esc(r['country'])}"
+                f" · détectée le {_esc(r['detected_on'])}</div>",
+                unsafe_allow_html=True)
+            if c.button("Ouvrir", key=f"{prefix}_{r['id']}", width="stretch"):
                 go_to_offer(r["id"])
 
 
@@ -335,56 +421,100 @@ FUNNEL = ["A analyser", "A postuler", "Candidature envoyee",
           "Reseau / Approche directe", "Entretien 1", "Entretien final / Shortlist"]
 
 
-def offers_table_view(rows):
-    """Vue Table : toutes les colonnes, statut et priorité éditables en ligne."""
+CLOSED_STAGES = [x for x in STATUSES if x in CLOSED]
+
+
+def stage_editor(rows: pd.DataFrame, key: str):
+    """Un tableau éditable (statut, priorité) pour UNE étape, avec son bouton d'enregistrement.
+
+    Changer le statut puis enregistrer fait passer la ligne dans le tableau de l'étape choisie.
+    """
     editor_data = rows.set_index("id")[["title", "company", "country", "score", "status",
                                         "priority", "next_action", "link"]].rename(columns={
         "title": "Poste", "company": "Maison", "country": "Pays", "score": "Score",
         "status": "Statut", "priority": "Priorité", "next_action": "Prochaine action", "link": "Lien"})
     edited = st.data_editor(
-        editor_data, key="pipeline_table", hide_index=True, width="stretch",
-        height=min(640, max(245, 46 * (len(editor_data) + 1))),
+        editor_data, key=f"tbl_{key}", hide_index=True, width="stretch",
+        height=table_height(len(editor_data)),
         column_config={
+            "Poste": st.column_config.TextColumn("Poste", width="large"),
             "Statut": st.column_config.SelectboxColumn("Statut", options=STATUSES, required=True),
             "Priorité": st.column_config.SelectboxColumn("Priorité", options=PRIORITIES, required=True),
             "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
             "Lien": st.column_config.LinkColumn("Annonce", display_text="Ouvrir")},
         disabled=["Poste", "Maison", "Pays", "Score", "Prochaine action", "Lien"])
-    a, b = st.columns([1, 2])
-    with a:
-        if st.button("Enregistrer les modifications", type="primary", key="save_pipeline_table"):
-            changed = 0
-            try:
-                for offer_id in editor_data.index:
-                    delta = {}
-                    for col, field in (("Statut", "status"), ("Priorité", "priority")):
-                        if edited.loc[offer_id, col] != editor_data.loc[offer_id, col]:
-                            delta[field] = edited.loc[offer_id, col]
-                    if delta:
-                        old = df[df["id"] == offer_id].iloc[0]
-                        changed += int(store.update_offer(offer_id, delta, expected_updated_at=old["updated_at"]))
-                st.session_state["notice"] = f"{changed} fiche(s) mise(s) à jour."
-                st.rerun()
-            except (ConcurrentEditError, ValueError) as exc:
-                st.error(str(exc))
-    with b:
-        export_cols = ["title", "company", "sector", "country", "source", "link", "level",
-                       "detected_on", "score", "status", "priority", "contact", "last_action",
-                       "next_action", "notes", "link_status"]
-        st.download_button("Exporter la sélection (CSV)",
-                           data=rows[export_cols].to_csv(index=False).encode("utf-8-sig"),
-                           file_name=f"candidatures_{today}.csv", mime="text/csv")
+    if st.button("Enregistrer", type="primary", key=f"save_{key}"):
+        changed = 0
+        try:
+            for offer_id in editor_data.index:
+                delta = {}
+                for col, field in (("Statut", "status"), ("Priorité", "priority")):
+                    if edited.loc[offer_id, col] != editor_data.loc[offer_id, col]:
+                        delta[field] = edited.loc[offer_id, col]
+                if delta:
+                    old = df[df["id"] == offer_id].iloc[0]
+                    changed += int(store.update_offer(offer_id, delta, expected_updated_at=old["updated_at"]))
+            st.session_state["notice"] = f"{changed} fiche(s) mise(s) à jour."
+            st.rerun()
+        except (ConcurrentEditError, ValueError) as exc:
+            st.error(str(exc))
+
+
+def stage_header(status: str, count: int):
+    st.markdown(f"<div class='stage-head'><span class='t'>{_esc(STATUS_LABELS.get(status, status))}</span>"
+                f"<span class='c'>{count} offre(s)</span></div>", unsafe_allow_html=True)
+
+
+def offers_table_view(rows):
+    """Vue Table : un tableau par étape d'avancement.
+
+    Les étapes en cours s'affichent dans l'ordre du parcours. Les offres refusées
+    ou écartées sont regroupées plus bas, chacune dans son tableau : visibles,
+    mais séparées des candidatures actives.
+    """
+    active = [s_ for s_ in STATUSES if s_ not in CLOSED]
+    shown = 0
+    for status in active:
+        subset = rows[rows["status"] == status]
+        if subset.empty:
+            continue
+        stage_header(status, len(subset))
+        stage_editor(subset, key=status)
+        shown += len(subset)
+    if not shown:
+        st.info("Aucune candidature en cours pour cette sélection.")
+
+    closed_rows = rows[rows["status"].isin(CLOSED)]
+    st.divider()
+    st.markdown(f"#### Refusées et écartées · {len(closed_rows)}")
+    if closed_rows.empty:
+        st.caption("Aucune offre refusée ou écartée. Pour en classer une, choisis "
+                   "« Refuse / Sans suite » ou « Ecarte » dans sa colonne Statut puis enregistre.")
+    for status in CLOSED_STAGES:
+        subset = closed_rows[closed_rows["status"] == status]
+        if subset.empty:
+            continue
+        with st.expander(f"{STATUS_LABELS.get(status, status)} · {len(subset)}", expanded=True):
+            stage_editor(subset, key=status)
+
+    export_cols = ["title", "company", "sector", "country", "source", "link", "level",
+                   "detected_on", "score", "status", "priority", "contact", "last_action",
+                   "next_action", "notes", "link_status"]
+    st.download_button("Exporter la sélection (CSV)",
+                       data=rows[export_cols].to_csv(index=False).encode("utf-8-sig"),
+                       file_name=f"candidatures_{today}.csv", mime="text/csv")
 
 
 def offers_board_view(rows):
     """Vue Board (kanban) : une colonne par étape, cartes déplaçables par menu."""
-    st.caption("Fais avancer une carte avec le menu « Déplacer vers ». Les statuts clôturés ne sont pas affichés ici.")
+    st.caption("Fais avancer une carte avec le menu « Déplacer vers ». "
+               "Les offres refusées et écartées sont dans la vue Table, en bas.")
     columns = st.columns(len(FUNNEL))
     for col, status in zip(columns, FUNNEL):
         subset = rows[rows["status"] == status]
         with col:
             st.markdown(f"<div style='font-size:.68rem;letter-spacing:1px;text-transform:uppercase;"
-                        f"color:#6E7A72;padding-bottom:6px'>{status} · {len(subset)}</div>",
+                        f"color:#6E7A72;padding-bottom:6px'>{STATUS_LABELS.get(status, status)} · {len(subset)}</div>",
                         unsafe_allow_html=True)
             for _, r in subset.head(25).iterrows():
                 with st.container(border=True):
@@ -429,7 +559,8 @@ def offer_detail_and_add():
                 st.caption(f"{current['company']} · {current['country']} · {current['sector']}")
             with dr:
                 score, reasons = calculate_score(current, prefs)
-                st.metric("Compatibilité", f"{score}/100")
+                st.caption("Compatibilité")
+                st.markdown(score_badge(score), unsafe_allow_html=True)
             with st.expander("Comprendre le score", expanded=False):
                 st.write(" · ".join(reasons))
                 st.caption("Score heuristique personnalisable, pas une probabilité de recrutement.")
@@ -515,6 +646,9 @@ def pipeline_offers_tab():
     else:
         view = st.radio("Vue", ["Table", "Board", "Groupé"], horizontal=True,
                         key="offers_view", label_visibility="collapsed")
+        hidden = len(df) - len(visible)
+        st.caption(f"**{len(visible)} offre(s) affichée(s)** sur {len(df)} en base"
+                   + (f" · {hidden} masquée(s) par les filtres de la barre latérale" if hidden else ""))
         if view == "Table":
             offers_table_view(visible)
         elif view == "Board":
@@ -706,13 +840,30 @@ if page == "Tableau de bord":
     m3.metric("Relances à traiter", count_due)
     m4.metric("Entretiens en cours", interviews)
 
-    col_main, col_side = st.columns([1.7, 1], gap="large")
+    # Frise d'avancement : où en est chaque offre, refusées comprises (à part, en pointillés).
+    counts = df["status"].value_counts().to_dict() if not df.empty else {}
+    steps = "".join(
+        f"<div class='funnel-step{' closed' if s_ in CLOSED else ''}{' active' if counts.get(s_) and s_ not in CLOSED else ''}'>"
+        f"<div class='n'>{counts.get(s_, 0)}</div><div class='l'>{_esc(STATUS_LABELS.get(s_, s_))}</div></div>"
+        for s_ in STATUSES)
+    st.markdown(f"<div class='funnel'>{steps}</div>", unsafe_allow_html=True)
+
+    col_main, col_side = st.columns([1.8, 1], gap="large")
     with col_main:
-        st.subheader("Opportunités prioritaires")
         ranked = visible[~visible["is_closed"]].sort_values(["score", "detected_on"], ascending=False)
-        inline_offer_buttons(ranked, "home")
+        h1, h2 = st.columns([3, 1.3], vertical_alignment="bottom")
+        h1.subheader("Opportunités prioritaires")
+        top_n = h2.selectbox("Afficher", [8, 15, 30, "Toutes"], index=0, key="home_top_n",
+                             format_func=lambda v: f"Top {v}" if v != "Toutes" else "Toutes")
+        limit = len(ranked) if top_n == "Toutes" else int(top_n)
+        st.caption(f"{min(limit, len(ranked))} sur {len(ranked)} offre(s) en cours, classées par score.")
+        inline_offer_buttons(ranked, "home", limit=limit)
         if ranked.empty:
-            st.info("Aucune offre visible. Ajuste les filtres ou lance une recherche.")
+            st.info("Aucune offre en cours. Ajuste les filtres ou lance une recherche.")
+        elif limit < len(ranked):
+            if st.button(f"Voir les {len(ranked)} offres dans le Pipeline", width="stretch"):
+                st.session_state["nav_target"] = "Pipeline"
+                st.rerun()
     with col_side:
         st.subheader("Actions à venir")
         todo = df[(df["next_action"] != "") & (~df["is_closed"])].sort_values("next_action") if not df.empty else df
@@ -725,8 +876,20 @@ if page == "Tableau de bord":
                 st.markdown(f"**{r['next_action']}** — {r['company']} {tag}")
                 st.caption(r["title"])
         st.divider()
+        st.subheader("Répartition")
+        if not df.empty:
+            open_df = df[~df["is_closed"]]
+            for label, col in (("Par pays", "country"), ("Par niveau de score", None)):
+                st.caption(label)
+                if col:
+                    data = open_df[col].value_counts()
+                else:
+                    tiers = pd.cut(open_df["score"], [-1, 69, 84, 100], labels=["< 70", "70–84", "85+"])
+                    data = tiers.value_counts().reindex(["85+", "70–84", "< 70"])
+                st.bar_chart(data, horizontal=True, height=130, color="#1F4D3A")
+        st.divider()
         st.subheader("Flux récent")
-        st.caption(f"{len(df)} opportunité(s) conservée(s) dans le CRM, dont {len(visible)} affichée(s) après filtrage.")
+        st.caption(f"{len(df)} opportunité(s) dans le CRM · {len(visible)} affichée(s) avec les filtres actuels.")
         if (ROOT / "scan_rapport.json").exists():
             import json
             try:

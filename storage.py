@@ -21,7 +21,8 @@ from sqlalchemy import (Column, Integer, MetaData, String, Table, Text, create_e
                         delete, event, insert, select, update, UniqueConstraint)
 from sqlalchemy.engine import Engine
 
-from matching import canonical_url, preferred_primary, same_opportunity, known_group_relation, normalize_company
+from matching import (canonical_url, est_une_offre, preferred_primary, same_opportunity,
+                      known_group_relation, normalize_company)
 from scoring import DEFAULT_PREFERENCES
 
 ROOT = Path(__file__).resolve().parent
@@ -309,6 +310,9 @@ class CRMStore:
         alt_links = vals.pop("alternates", [])
         if not vals["title"] or not vals["company"] or vals["country"] not in ("France", "Suisse", "Italie"):
             return False
+        # Un ajout manuel reste libre ; le flux automatique n'importe que de vraies offres.
+        if mode == "feed" and not est_une_offre(vals["title"], vals["link"]):
+            return False
         existing = self._find_offer(conn, vals)
         if existing:
             # Jamais remplacer les informations personnelles par des champs de scraping.
@@ -392,8 +396,32 @@ class CRMStore:
         self.backup_local()
         return added
 
+    def purge_non_offers(self) -> int:
+        """Supprime les faux positifs deja importes (articles, profils, listes).
+
+        Seules les fiches automatiques JAMAIS touchees sont concernees : statut
+        « A analyser », aucune note, aucun contact, aucune action. Tout ce que
+        l'utilisateur a modifie est conserve.
+        """
+        removed = 0
+        with self.engine.begin() as conn:
+            rows = conn.execute(select(offers).where(
+                (offers.c.is_manual == 0) & (offers.c.status == "A analyser")
+                & (offers.c.notes == "") & (offers.c.contact == "")
+                & (offers.c.last_action == "") & (offers.c.next_action == "")
+            )).mappings().all()
+            for row in rows:
+                if est_une_offre(row["title"], row["link"]):
+                    continue
+                conn.execute(delete(links).where(links.c.offer_id == row["id"]))
+                conn.execute(delete(history).where(history.c.offer_id == row["id"]))
+                conn.execute(delete(offers).where(offers.c.id == row["id"]))
+                removed += 1
+        return removed
+
     def bootstrap(self, root: str | Path = ROOT) -> dict:
         root = Path(root)
+        self.purge_non_offers()
         return {
             "legacy": self.import_csv(root / "offres_emploi.csv", mode="legacy"),
             "feed": self.import_csv(root / "offres_detectees.csv", mode="feed"),

@@ -166,3 +166,66 @@ SOURCE_RANK = {"Sites Maisons de Luxe": 5, "Cabinets de Recrutement": 4,
 
 def preferred_primary(new_source: str, old_source: str) -> bool:
     return SOURCE_RANK.get(new_source, 0) > SOURCE_RANK.get(old_source, 0)
+
+
+# --- Filtre « ce n'est pas une offre » -------------------------------------
+# La recherche ouverte par maison remonte aussi des articles de presse
+# (« LVMH nomme X directeur industriel »), des fiches de personnes (The Org,
+# RocketReach...) et des pages de resultats de jobboards. Ce filtre les ecarte
+# AVANT le CRM. Il renvoie la raison, pour pouvoir l'expliquer dans les tests.
+
+# Sites qui ne publient jamais d'offres : presse, bourse, annuaires de personnes.
+NON_JOB_HOSTS = (
+    # Organigrammes et annuaires de personnes (donnees personnelles)
+    "theorg.com", "rocketreach.co", "zoominfo.com", "signalhire.com", "lusha.com",
+    "contactout.com", "crunchbase.com", "apollo.io", "cbinsights.com",
+    # Bourse et finance
+    "zonebourse.com", "marketscreener.com", "boursorama.com", "investing.com",
+    "boursier.com", "abcbourse.com", "finance.yahoo.com",
+    # Presse generale, economique et luxe
+    "lefigaro.fr", "lemonde.fr", "lesechos.fr", "challenges.fr", "bfmtv.com",
+    "latribune.fr", "capital.fr", "lexpress.fr", "lepoint.fr", "usinenouvelle.com",
+    "reuters.com", "bloomberg.com", "ft.com", "forbes.com", "forbes.fr", "wwd.com",
+    "businessoffashion.com", "fashionnetwork.com", "fashionunited.com",
+    "journalduluxe.fr", "luxus-plus.com", "bilan.ch", "letemps.ch", "agefi.com",
+    "pambianconews.com", "ilsole24ore.com", "milanofinanza.it", "corriere.it",
+    "europastar.com", "worldtempus.com", "watchpro.com", "watchonista.com",
+    # Communiques
+    "prnewswire.com", "globenewswire.com", "businesswire.com",
+    # Encyclopedies et reseaux sociaux
+    "wikipedia.org", "facebook.com", "instagram.com", "twitter.com", "x.com",
+    "youtube.com", "tiktok.com", "pinterest.com",
+)
+
+# Morceaux d'URL typiques d'un article, d'un organigramme ou d'une liste de resultats.
+_NON_JOB_PATH = re.compile(
+    r"/(actualites?|news|article|articles|communiques?|press|org-chart|people|profil|profile)/"
+    r"|/s/emploi/|/(search|recherche|resultats)/?$"
+)
+
+# Titres d'annonces de nomination, de fiches de personnes et de pages de resultats.
+# Compare sur le titre simplifie (minuscules, sans accents ni ponctuation).
+_NON_JOB_TITLE = re.compile(
+    r"\b(nomme|nommee|nomination|nominato|nominata|appoints?|appointed|appointment"
+    r"|rejoint|joins|promu|promue|succede a|prend la tete|new ceo|nouveau directeur general"
+    r"|the org|org chart|organigramme"
+    r"|offres? s d emploi|offres d emploi|toutes les offres|emplois? et recrutement"
+    r"|jobs in|ricerca lavoro|offerte di lavoro)\b"
+)
+
+
+def raison_non_offre(title: object, url: object) -> str | None:
+    """Renvoie pourquoi ce resultat n'est PAS une offre, ou None si c'en est une."""
+    parts = urlsplit(str(url or ""))
+    host = (parts.hostname or "").lower()
+    if any(host == h or host.endswith("." + h) for h in NON_JOB_HOSTS):
+        return f"site sans offres ({host})"
+    if _NON_JOB_PATH.search((parts.path or "").lower()):
+        return "page d'article, de profil ou de resultats"
+    if _NON_JOB_TITLE.search(simplify(title)):
+        return "titre d'article, de profil ou de liste"
+    return None
+
+
+def est_une_offre(title: object, url: object) -> bool:
+    return raison_non_offre(title, url) is None

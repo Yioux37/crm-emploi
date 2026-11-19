@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
-from matching import known_group_relation, preferred_primary, same_opportunity, normalize_company
+from matching import est_une_offre, known_group_relation, preferred_primary, same_opportunity, normalize_company
 from storage import SCRAPER_COLUMNS
 
 
@@ -29,6 +29,9 @@ def merge_feed(old: list[dict], new: list[dict], scanned_on: str | None = None) 
         record, is_new = raw
         row = {c: str(record.get(c, "") or "") for c in SCRAPER_COLUMNS}
         if not row["Titre"] or not row["Entreprise"] or row["Pays"] not in ("France", "Suisse", "Italie"):
+            continue
+        # Articles, fiches de personnes, pages de resultats : retires du flux, meme anciens.
+        if not est_une_offre(row["Titre"], row["Lien"]):
             continue
         if not row["Date de détection"]:
             row["Date de détection"] = today
