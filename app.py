@@ -107,15 +107,14 @@ a, a:visited{ color:var(--green); }
 [data-testid="stDataFrame"]{ border:1px solid var(--line); border-radius:10px; }
 hr{ border-color:var(--line); }
 
-/* Badge de score : rond, lisible en entier, couleur selon le niveau */
-.score-badge{ width:58px; height:58px; border-radius:50%; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; font-family:'Cormorant Garamond',Georgia,serif;
-  font-size:1.55rem; font-weight:600; line-height:1; border:2px solid; }
-.score-badge small{ font-family:'Inter',sans-serif; font-size:.55rem; letter-spacing:.8px;
-  color:inherit !important; opacity:.75; margin-top:2px; }
-.tier-high{ color:#1F4D3A; border-color:#1F4D3A; background:#EEF4F0; }
-.tier-mid{ color:#8A6A1F; border-color:#C9A54A; background:#FBF6E9; }
-.tier-low{ color:#6E7A72; border-color:#C9D1CC; background:#F6F8F7; }
+/* Score : chiffre sobre + fine jauge. Pas de couleur vive, pas de pastille. */
+.score{ width:64px; }
+.score .v{ font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; font-size:1.35rem;
+  font-weight:600; color:var(--ink); line-height:1; letter-spacing:-.3px; }
+.score .v span{ font-size:.7rem; font-weight:400; color:var(--sage); margin-left:2px; letter-spacing:0; }
+.score .track{ height:3px; background:var(--line); border-radius:2px; margin-top:7px; overflow:hidden; }
+.score .fill{ height:100%; background:var(--green); border-radius:2px; }
+.score .k{ font-size:.6rem; text-transform:uppercase; letter-spacing:1.2px; color:var(--sage); margin-bottom:5px; }
 
 /* Ligne d'offre compacte */
 .offer-title{ font-weight:600; font-size:1rem; color:var(--ink); line-height:1.3; }
@@ -380,11 +379,12 @@ def short_table(rows: pd.DataFrame, *, show_status: bool = True):
     )
 
 
-def score_badge(score: int) -> str:
-    """Badge rond : le score s'affiche EN ENTIER (st.metric le tronquait en « 9… »)."""
-    score = int(score)
-    tier = "tier-high" if score >= 85 else "tier-mid" if score >= 70 else "tier-low"
-    return f"<div class='score-badge {tier}'>{score}<small>/100</small></div>"
+def score_badge(score: int, label: str = "") -> str:
+    """Score sobre : chiffre en noir, « /100 » discret, fine jauge verte proportionnelle."""
+    score = max(0, min(100, int(score)))
+    head = f"<div class='k'>{label}</div>" if label else ""
+    return (f"<div class='score'>{head}<div class='v'>{score}<span>/100</span></div>"
+            f"<div class='track'><div class='fill' style='width:{score}%'></div></div></div>")
 
 
 def _esc(text: object) -> str:
@@ -559,8 +559,7 @@ def offer_detail_and_add():
                 st.caption(f"{current['company']} · {current['country']} · {current['sector']}")
             with dr:
                 score, reasons = calculate_score(current, prefs)
-                st.caption("Compatibilité")
-                st.markdown(score_badge(score), unsafe_allow_html=True)
+                st.markdown(score_badge(score, "Compatibilité"), unsafe_allow_html=True)
             with st.expander("Comprendre le score", expanded=False):
                 st.write(" · ".join(reasons))
                 st.caption("Score heuristique personnalisable, pas une probabilité de recrutement.")
