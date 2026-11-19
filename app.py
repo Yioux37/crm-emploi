@@ -863,8 +863,17 @@ def entretiens_tab():
         st.rerun()
 
 
-def _secret_ou(defaut: str, cle: str) -> str:
-    return secret(cle) or defaut
+def _secret_ou(defaut: str, *cles: str) -> str:
+    """Premier secret renseigné parmi les noms donnés, sinon la valeur par défaut."""
+    for cle in cles:
+        if secret(cle):
+            return secret(cle)
+    return defaut
+
+
+def _jeton_github() -> str:
+    # GITHUB_TOKEN / GITHUB_REPO : noms déjà présents dans les secrets Streamlit.
+    return _secret_ou("", "CIBLAGE_GITHUB_TOKEN", "GITHUB_TOKEN")
 
 
 def ciblage_page():
@@ -983,20 +992,21 @@ def ciblage_page():
             st.error(f"Impossible d'écrire ciblage.json : {exc}")
             return
         message = "Ciblage enregistré. Le bouton « Rechercher de nouvelles offres » l'utilise déjà."
-        token = secret("CIBLAGE_GITHUB_TOKEN")
+        token = _jeton_github()
         if token:
             ok, detail = ciblage.publier_sur_github(
-                propre, token, _secret_ou("Yioux37/crm-emploi", "CIBLAGE_GITHUB_REPO"),
-                _secret_ou("main", "CIBLAGE_GITHUB_BRANCH"))
+                propre, token,
+                _secret_ou("Yioux37/crm-emploi", "CIBLAGE_GITHUB_REPO", "GITHUB_REPO"),
+                _secret_ou("main", "CIBLAGE_GITHUB_BRANCH", "GITHUB_BRANCH"))
             message += " " + detail if ok else f" Attention : {detail} Le scan GitHub garde l'ancien ciblage."
         st.session_state["notice"] = message
         st.session_state["ciblage_v"] = v + 1
         st.rerun()
 
-    if not secret("CIBLAGE_GITHUB_TOKEN"):
+    if not _jeton_github():
         st.caption("Le ciblage est enregistré sur cet ordinateur, dans `ciblage.json`. "
                    "Le scan automatique GitHub ne le verra qu'une fois le fichier poussé sur GitHub. "
-                   "Pour un envoi automatique, ajoute le secret `CIBLAGE_GITHUB_TOKEN`.")
+                   "Pour un envoi automatique, ajoute le secret `GITHUB_TOKEN`.")
 
 
 # ============================================================================

@@ -209,6 +209,9 @@ def publier_sur_github(config: dict, token: str, repo: str, branche: str = "main
         reponse = session.put(url, headers=headers, json=corps, timeout=15)
         if reponse.status_code in (200, 201):
             return True, "Enregistré sur GitHub : le prochain scan l'utilisera."
+        if reponse.status_code in (401, 403, 404):
+            return False, ("GitHub a refusé l'enregistrement : le jeton est expiré ou n'a pas "
+                           "le droit « Contents : Read and write » sur ce dépôt.")
         return False, f"GitHub a refusé l'enregistrement (code {reponse.status_code})."
     except Exception as exc:  # réseau, JSON… : on n'empêche jamais l'enregistrement local
         return False, f"GitHub injoignable ({type(exc).__name__})."
