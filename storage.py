@@ -22,7 +22,7 @@ from sqlalchemy import (Column, Integer, MetaData, String, Table, Text, create_e
 from sqlalchemy.engine import Engine
 
 from matching import (canonical_url, est_une_offre, preferred_primary, same_opportunity,
-                      known_group_relation, normalize_company)
+                      known_group_relation, normalize_company, SOURCE_RANK)
 from scoring import DEFAULT_PREFERENCES
 
 ROOT = Path(__file__).resolve().parent
@@ -53,6 +53,10 @@ STATUSES_LEGACY = {
 PRIORITIES_LEGACY = {"🔴 Haute": "Haute", "🟠 Moyenne": "Moyenne", "🟢 Veille": "Veille"}
 SCRAPER_COLUMNS = ["Titre", "Entreprise", "Secteur", "Pays", "Source", "Lien",
                    "Niveau estimé", "Date de détection", "Dernière détection", "Liens alternatifs"]
+# États du lien (voir link_health). « Indisponible » : ancien statut, toujours lu.
+LINK_STATUSES = ("Accessible", "Offre expirée", "Lien redirigé", "À vérifier", "Indisponible")
+DEAD_LINK_STATUSES = ("Offre expirée", "Lien redirigé", "Indisponible")
+CLOSED_STATUSES = ("Refuse / Sans suite", "Ecarte")
 CRM_COLUMNS = ["Statut", "Priorité", "Contact / Chasseur", "Date dernière action",
                "Date prochaine action", "Notes"]
 
@@ -500,15 +504,112 @@ class CRMStore:
         self.backup_local()
         return True
 
-    def record_link_check(self, offer_id: str, status: str) -> None:
-        if status not in ("Accessible", "Indisponible", "À vérifier"):
+    def record_link_check(self, offer_id: str, status: str, reason: str = "") -> None:
+        """Vérification manuelle (bouton de la fiche) ou signalement « lien mort » par papa."""
+        if status not in LINK_STATUSES:
             raise ValueError("Statut de lien inconnu")
         with self.engine.begin() as conn:
             conn.execute(update(offers).where(offers.c.id == offer_id).values(
                 link_status=status, link_checked_at=utc_now()
             ))
-            self._record_event(conn, offer_id, f"Vérification du lien : {status}")
+            self._record_event(conn, offer_id, f"Vérification du lien : {status}" + (f" — {reason}" if reason else ""))
         self.backup_local()
+
+    def offers_to_check(self, older_than_hours: int = 20) -> list[dict]:
+        """Offres encore ouvertes à revérifier : jamais vérifiées, ou pas depuis X heures.
+
+        Une offre écartée ou refusée n'est plus vérifiée (inutile de solliciter les sites).
+        Chaque offre arrive avec TOUS ses liens (principal + alternatifs).
+        """
+        limite = datetime.now(timezone.utc).timestamp() - older_than_hours * 3600
+        out = []
+        with self.engine.connect() as conn:
+            rows = conn.execute(select(offers).where(offers.c.status.notin_(CLOSED_STATUSES))).mappings()
+            for r in rows:
+                if not str(r["link"]).startswith(("http://", "https://")):
+                    continue
+                vu = r["link_checked_at"]
+                try:
+                    recent = vu and datetime.fromisoformat(vu).timestamp() > limite
+                except ValueError:
+                    recent = False
+                if recent:
+                    continue
+                alts = [dict(a) for a in conn.execute(select(links.c.url, links.c.source)
+                                                      .where(links.c.offer_id == r["id"])).mappings()]
+                out.append({**dict(r), "alternates": [a for a in alts if a["url"] != r["link"]]})
+        return out
+
+    def apply_link_verdicts(self, offer_id: str, verdicts: dict) -> str:
+        """Applique le résultat de la vérification à UNE offre. Renvoie ce qui s'est passé.
+
+        Étape par étape :
+          1. lien principal vivant -> on note juste le statut (« Accessible », « À vérifier ») ;
+          2. lien principal mort, mais un autre lien de la même offre est ouvert
+             -> il devient le lien principal : papa ne clique plus sur une annonce morte ;
+          3. tous les liens connus sont morts -> statut « Offre expirée » / « Lien redirigé ».
+             Si papa n'y avait pas encore touché (« A analyser »), l'offre passe en
+             « Écarté » avec une note : elle quitte la liste mais reste consultable.
+             Une candidature déjà en cours n'est JAMAIS déplacée : seul un bandeau prévient.
+        Résultats possibles : "inchange", "ok", "remplace", "expiree", "ecartee".
+        """
+        with self.engine.begin() as conn:
+            offer = conn.execute(select(offers).where(offers.c.id == offer_id)).mappings().first()
+            if not offer:
+                return "inchange"
+            verdict = verdicts.get(offer["link"])
+            if verdict is None:
+                return "inchange"
+            now = utc_now()
+            if not verdict.mort:
+                conn.execute(update(offers).where(offers.c.id == offer_id).values(
+                    link_status=verdict.statut, link_checked_at=now))
+                if verdict.statut != offer["link_status"] and offer["link_status"] in DEAD_LINK_STATUSES:
+                    self._record_event(conn, offer_id, f"Lien de nouveau accessible : {verdict.statut}")
+                return "ok"
+            autres = [dict(a) for a in conn.execute(select(links.c.url, links.c.source)
+                                                    .where(links.c.offer_id == offer_id)).mappings()
+                      if a["url"] != offer["link"]]
+            ouverts = [a for a in autres
+                       if verdicts.get(a["url"]) is not None and verdicts[a["url"]].statut == "Accessible"]
+            if ouverts:
+                ouverts.sort(key=lambda a: SOURCE_RANK.get(a["source"], 0), reverse=True)
+                nouveau = ouverts[0]
+                conn.execute(update(offers).where(offers.c.id == offer_id).values(
+                    link=nouveau["url"], source=nouveau["source"], link_status="Accessible",
+                    link_checked_at=now, updated_at=now))
+                self._record_event(conn, offer_id, f"Lien principal mort ({verdict.raison}) : "
+                                                   f"remplacé par l'annonce {nouveau['source']}")
+                return "remplace"
+            changes = {"link_status": verdict.statut, "link_checked_at": now}
+            resultat = "expiree"
+            if offer["status"] == "A analyser":
+                note = f"[Auto {date.today().strftime('%d/%m')}] {verdict.statut} : {verdict.raison}"
+                changes.update(status="Ecarte", updated_at=now,
+                               notes=f"{note}\n\n{offer['notes']}" if offer["notes"] else note)
+                resultat = "ecartee"
+            conn.execute(update(offers).where(offers.c.id == offer_id).values(**changes))
+            if offer["link_status"] != verdict.statut:
+                self._record_event(conn, offer_id, f"Vérification du lien : {verdict.statut} — {verdict.raison}")
+            if resultat == "ecartee":
+                self._record_event(conn, offer_id, "Statut : À analyser → Écarté (offre expirée, automatique)")
+        return resultat
+
+    def verify_open_offers(self, verifier=None, older_than_hours: int = 20, on_progress=None) -> dict:
+        """Revérifie toutes les offres ouvertes et applique les verdicts. Renvoie le bilan."""
+        from link_health import verifier_lot
+        a_verifier = self.offers_to_check(older_than_hours)
+        items = []
+        for o in a_verifier:
+            items.append((o["link"], o["title"]))
+            items.extend((a["url"], o["title"]) for a in o["alternates"])
+        verdicts = (verifier or verifier_lot)(items, on_progress=on_progress) if items else {}
+        bilan = {"verifiees": len(a_verifier), "remplace": 0, "expiree": 0, "ecartee": 0, "ok": 0, "inchange": 0}
+        for o in a_verifier:
+            bilan[self.apply_link_verdicts(o["id"], verdicts)] += 1
+        if a_verifier:
+            self.backup_local()
+        return bilan
 
     def is_notified(self, kind: str, item_key: str) -> bool:
         with self.engine.connect() as conn:

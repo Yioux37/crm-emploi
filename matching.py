@@ -244,6 +244,40 @@ def preferred_primary(new_source: str, old_source: str) -> bool:
     return SOURCE_RANK.get(new_source, 0) > SOURCE_RANK.get(old_source, 0)
 
 
+# --- Étiquette de source vérifiée sur le lien -------------------------------
+# Avant : la recherche ouverte « Hermès directeur supply chain » étiquetait
+# « Sites Maisons de Luxe » TOUT résultat, même un agrégateur (trabajo.org,
+# jooble...). Avec le rang 5, ce lien d'agrégateur devenait le lien principal,
+# devant la vraie fiche LinkedIn : papa cliquait « site de la maison » et
+# tombait sur une copie, souvent expirée. On juge donc sur le domaine réel.
+_ATS_ET_CARRIERES = (
+    "myworkdayjobs.com", "smartrecruiters.com", "greenhouse.io", "lever.co", "ashbyhq.com",
+    "teamtailor.com", "recruitee.com", "workable.com", "successfactors.com", "successfactors.eu",
+    "taleo.net", "oraclecloud.com", "jobs.personio.de", "softgarden.io", "icims.com",
+    "hermes.careers",
+)
+
+
+def _domaines_maisons() -> tuple[str, ...]:
+    from source_catalog import SEARCH_SITES  # import tardif : pas de dépendance circulaire
+    return tuple(domain for _, domain, source, _, _ in SEARCH_SITES
+                 if source == "Sites Maisons de Luxe") + _ATS_ET_CARRIERES
+
+
+def source_depuis_lien(link: str, source: str) -> str:
+    """« Sites Maisons de Luxe » seulement si le lien pointe vraiment chez la maison ou son ATS."""
+    if source != "Sites Maisons de Luxe":
+        return source
+    host = (urlsplit(str(link or "")).hostname or "").lower()
+    if not host:
+        return source
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
+        return "LinkedIn (Offres)"
+    if any(host == d or host.endswith("." + d) for d in _domaines_maisons()):
+        return source
+    return "Portails spécialisés"
+
+
 # --- Filtre « ce n'est pas une offre » -------------------------------------
 # La recherche ouverte par maison remonte aussi des articles de presse
 # (« LVMH nomme X directeur industriel »), des fiches de personnes (The Org,

@@ -10,7 +10,7 @@ import argparse
 import json
 import progress
 import ciblage
-from matching import country_from_location, canonical_url
+from matching import country_from_location, canonical_url, source_depuis_lien
 from merge_feed import merge_feed
 from storage import SCRAPER_COLUMNS
 from sources_plus import fetch_public_ats, fetch_indexed_jobs
@@ -248,7 +248,7 @@ def valider_et_classer_offre(titre, entreprise, contexte="", est_post=False, lie
 def deduire_source(lien, source_actuelle=""):
     s = str(source_actuelle)
     if s in ["LinkedIn (Offres)", "LinkedIn (Posts)", "Sites Maisons de Luxe", "Cabinets de Recrutement", "Portails spécialisés", "Portails cadres", "Approche directe / Réseau"]:
-        return s
+        return source_depuis_lien(lien, s)
     l = str(lien).lower()
     if "linkedin.com/posts" in l or "linkedin.com/feed/update" in l:
         return "LinkedIn (Posts)"
@@ -257,7 +257,7 @@ def deduire_source(lien, source_actuelle=""):
     cabinets = ["michaelpage", "robertwalters", "luxetalent", "hays", "fedsupply", "pagepersonnel"]
     if any(c in l for c in cabinets):
         return "Cabinets de Recrutement"
-    return "Sites Maisons de Luxe"
+    return source_depuis_lien(lien, "Sites Maisons de Luxe")
 
 
 # ==============================================================================
@@ -504,7 +504,7 @@ def normaliser_source_plus(raw):
     lien = str(raw.get("url") or "").strip()
     if not titre or not canonical_url(lien):
         return None
-    source = str(raw.get("source") or "Portails spécialisés")
+    source = source_depuis_lien(lien, str(raw.get("source") or "Portails spécialisés"))
     localisation = str(raw.get("location") or "").strip()
     contexte = str(raw.get("context") or "")
     employeur = str(raw.get("company") or "").strip()
@@ -664,6 +664,23 @@ def fetch_alertes_linkedin():
 # 6. SAUVEGARDE, PURGE & PRÉSERVATION DES DONNÉES CRM
 # ==============================================================================
 
+def verification_liens_active() -> bool:
+    """LINK_CHECK=0 coupe la vérification (tests, dépannage)."""
+    return os.getenv('LINK_CHECK', '1') != '0'
+
+
+def verifier_liens_du_flux(rows, current_day, verifier=None):
+    """Vérifie les liens du flux et retire les offres mortes. Voir merge_feed.appliquer_verdicts_flux."""
+    from link_health import verifier_lot
+    from merge_feed import appliquer_verdicts_flux, liens_a_verifier
+    liens = liens_a_verifier(rows, current_day, maximum=int(os.getenv('LINK_CHECK_MAX', '150')))
+    verdicts = (verifier or verifier_lot)(
+        liens, on_progress=lambda fait, total, site: progress.tick(fait, total, site))
+    rows, bilan = appliquer_verdicts_flux(rows, verdicts)
+    bilan['verifies'] = len(verdicts)
+    return rows, bilan
+
+
 def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", signals_output=None,
                   linkedin=False):
     """Ne modifie jamais la base personnelle: conserve le flux en cas de panne.
@@ -693,6 +710,8 @@ def executer_tout(output="offres_detectees.csv", report="scan_rapport.json", sig
     ) + ((('LinkedIn direct', fetch_linkedin_jobs),) if linkedin else ())
     # Barre de progression : une etape par collecteur, + signaux + enregistrement.
     etapes = [name for name, _ in providers]
+    if verification_liens_active():
+        etapes.append('Vérification des liens')
     if signals_output is not None:
         etapes.append('Signaux marche')
     etapes.append('Enregistrement')
@@ -735,6 +754,11 @@ def _executer_collecte(providers, output, report, signals_output, linkedin):
     else:
         merged = merged_old
         status = 'degrade' if errors else 'aucune_offre_cible'
+    # Offres expirées et liens qui ne mènent plus au poste : retirés AVANT publication.
+    liens_bilan = {'offres_retirees': 0, 'liens_morts': 0, 'liens_remplaces': 0, 'retirees': []}
+    if verification_liens_active() and merged:
+        progress.step('Vérification des liens')
+        merged, liens_bilan = verifier_liens_du_flux(merged, current_day)
     result = {
         'version': 6, 'date_scan': current_day, 'statut': status,
         'par_source': counts,
@@ -744,17 +768,25 @@ def _executer_collecte(providers, output, report, signals_output, linkedin):
         'annonces_nouvelles': max(0, len(merged) - len(merged_old)),
         'total_historique': len(merged),
         'sources_en_erreur': errors, 'sources_repondant': successes,
+        'liens_verifies': liens_bilan.get('verifies', 0),
+        'offres_expirees_retirees': liens_bilan['offres_retirees'],
+        'liens_morts': liens_bilan['liens_morts'],
+        'liens_remplaces': liens_bilan['liens_remplaces'],
+        'detail_offres_retirees': liens_bilan['retirees'][:50],
         'etat_sources': EXTRA_SOURCE_STATS.copy(),
         'avertissement': ('Des sources ont echoue. Les anciennes offres restent conservees.'
                           if errors else ''),
     }
-    if collected:
+    if collected or liens_bilan['offres_retirees'] or liens_bilan['liens_remplaces']:
         temp = output_path + '.tmp'
         pd.DataFrame(merged, columns=SCRAPER_COLUMNS).to_csv(temp, index=False, encoding='utf-8')
         os.replace(temp, output_path)
     else:
         # Important : aucune re-ecriture du flux public si 0 offre retenue.
         print('⚠️ Aucune nouvelle offre exploitable. Le flux precedent est conserve.')
+    if liens_bilan['offres_retirees']:
+        print(f"🧹 {liens_bilan['offres_retirees']} offre(s) expiree(s) retiree(s) du flux, "
+              f"{liens_bilan['liens_remplaces']} lien(s) principal(aux) remplace(s).")
     if signals_output is not None:
         progress.step('Signaux marche')
         try:

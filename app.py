@@ -13,7 +13,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from link_health import check_link
+from link_health import EXPIREE, MORTS, Verdict, verifier_offre
 from matching import canonical_url
 from notifications import CLOSED, collect_alerts
 from scoring import calculate_score
@@ -123,6 +123,8 @@ hr{ border-color:var(--line); }
 .offer-meta{ color:var(--sage); font-size:.8rem; margin-top:3px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .offer-new{ color:var(--green); font-weight:600; font-size:.66rem; letter-spacing:1px;
+  text-transform:uppercase; margin-right:8px; }
+.offer-dead{ color:var(--alert); font-weight:600; font-size:.66rem; letter-spacing:1px;
   text-transform:uppercase; margin-right:8px; }
 .row-sep{ border-top:1px solid var(--line); margin:2px 0; }
 /* « Ouvrir » : simple lien texte, pas de cadre */
@@ -278,6 +280,38 @@ def run_scan_with_progress(timeout_s: int = 900):
     return code, "".join(log)[-5000:]
 
 
+def verifier_liens_crm(older_than_hours: int = 20) -> dict:
+    """Revérifie les offres en cours, avec une barre de progression dans la barre latérale.
+
+    Pourquoi ici et pas seulement dans le scan ? Le scan nettoie le flux public,
+    mais une offre déjà entrée dans le CRM y reste : c'est elle que papa ouvre.
+    """
+    bar = st.sidebar.progress(0.0, text="Vérification des liens…")
+
+    def avance(fait, total, site):
+        bar.progress(min(fait / max(total, 1), 1.0), text=f"Liens vérifiés : {fait}/{total} · {site}")
+
+    try:
+        return store.verify_open_offers(older_than_hours=older_than_hours, on_progress=avance)
+    finally:
+        bar.empty()
+
+
+def resume_verification(bilan: dict) -> str:
+    """Phrase courte pour papa : seulement ce qui a changé."""
+    morceaux = []
+    if bilan.get("ecartee"):
+        morceaux.append(f"{bilan['ecartee']} offre(s) expirée(s) rangée(s) dans « Écarté »")
+    if bilan.get("expiree"):
+        morceaux.append(f"{bilan['expiree']} candidature(s) en cours sur une offre fermée (voir la fiche)")
+    if bilan.get("remplace"):
+        morceaux.append(f"{bilan['remplace']} lien(s) mort(s) remplacé(s) par une annonce ouverte")
+    if not bilan.get("verifiees"):
+        return ""
+    return (f"Liens vérifiés : {bilan['verifiees']} offre(s). " + " · ".join(morceaux) + "."
+            if morceaux else f"Liens vérifiés : {bilan['verifiees']} offre(s), aucune expirée.")
+
+
 if st.sidebar.button("Rechercher de nouvelles offres", width="stretch"):
     try:
         code, journal = run_scan_with_progress()
@@ -287,10 +321,19 @@ if st.sidebar.button("Rechercher de nouvelles offres", width="stretch"):
                 st.code(journal)
         else:
             new_count = store.import_csv(ROOT / "offres_detectees.csv")
-            st.session_state["notice"] = f"Scan terminé : {new_count} nouvelle(s) opportunité(s) dans le CRM."
+            bilan = verifier_liens_crm()
+            st.session_state["notice"] = (f"Scan terminé : {new_count} nouvelle(s) opportunité(s) dans le CRM. "
+                                          + resume_verification(bilan))
             st.rerun()
     except subprocess.TimeoutExpired:
         st.sidebar.error("Scan trop long : l'opération a été interrompue, sans suppression d'offre.")
+
+if st.sidebar.button("Vérifier les liens des offres", width="stretch",
+                     help="Ouvre chaque offre en cours et repère celles qui ont expiré "
+                          "ou dont le lien ne mène plus au poste."):
+    bilan = verifier_liens_crm(older_than_hours=0)
+    st.session_state["notice"] = resume_verification(bilan) or "Aucune offre en cours à vérifier."
+    st.rerun()
 
 if st.sidebar.button("Actualiser le flux", width="stretch"):
     try:
@@ -382,12 +425,13 @@ def short_table(rows: pd.DataFrame, *, show_status: bool = True):
     if rows.empty:
         st.info("Aucune offre pour cette sélection.")
         return
-    cols = ["title", "company", "country", "score", "status", "priority", "next_action", "link"]
+    cols = ["title", "company", "country", "score", "status", "priority", "next_action", "link", "link_status"]
     if not show_status:
         cols.remove("priority")
     ui = rows[cols].rename(columns={
         "title": "Poste", "company": "Maison", "country": "Pays", "score": "Score",
-        "status": "Statut", "priority": "Priorité", "next_action": "Prochaine action", "link": "Lien"
+        "status": "Statut", "priority": "Priorité", "next_action": "Prochaine action", "link": "Lien",
+        "link_status": "État du lien",
     })
     st.dataframe(
         ui, hide_index=True, width="stretch",
@@ -445,6 +489,8 @@ def inline_offer_buttons(offers_subset: pd.DataFrame, prefix: str, limit: int = 
             if r["status"] != "A analyser":
                 meta.append(_esc(STATUS_LABELS.get(r["status"], r["status"])))
             new = "<span class='offer-new'>Nouveau</span>" if r["detected_on"] >= new_cutoff else ""
+            if r.get("link_status") in MORTS:
+                new = f"<span class='offer-dead'>{_esc(r['link_status'])}</span>" + new
             b.markdown(
                 f"<div class='offer-title' title='{_esc(r['title'])}'>{_esc(r['title'])}</div>"
                 f"<div class='offer-meta'>{new}{' · '.join(meta)}</div>",
@@ -609,14 +655,35 @@ def offer_detail_and_add():
                 st.markdown("**Annonces et sources**")
                 for alternate in offer_links:
                     st.markdown(f"- [{alternate['source']}]({alternate['url']})")
+            if current["link_status"] in MORTS:
+                st.error(f"{current['link_status']} : cette annonce n'est plus ouverte. "
+                         "Si tu as déjà postulé, garde la fiche pour le suivi ; sinon, écarte-la.")
             if current["link"].startswith(("https://", "http://")):
-                x, y = st.columns([1, 3])
+                x, z, y = st.columns([1, 1, 2.2])
                 with x:
                     if st.button("Vérifier le lien", key=f"check_{chosen}"):
-                        with st.spinner("Vérification du lien…"):
-                            link_state = check_link(current["link"])
-                            store.record_link_check(chosen, link_state)
-                        st.session_state["notice"] = f"Lien : {link_state}. Un blocage d'accès n'est pas une annonce expirée."
+                        with st.spinner("Vérification de l'offre…"):
+                            # Tous les liens de l'offre : si le principal est mort,
+                            # un alternatif encore ouvert prend sa place.
+                            from link_health import verifier_lot
+                            items = [(current["link"], current["title"])] + [
+                                (a["url"], current["title"]) for a in offer_links]
+                            verdicts = verifier_lot(items)
+                            resultat = store.apply_link_verdicts(chosen, verdicts)
+                        v = verdicts.get(current["link"])
+                        st.session_state["notice"] = {
+                            "remplace": "Le lien principal était mort : il est remplacé par une annonce encore ouverte.",
+                            "ecartee": f"{v.statut if v else ''} : {v.raison if v else ''}. L'offre passe dans « Écarté ».",
+                            "expiree": f"{v.statut if v else ''} : {v.raison if v else ''}.",
+                        }.get(resultat, f"Lien : {v.statut} — {v.raison}" if v else "Lien vérifié.")
+                        st.rerun()
+                with z:
+                    if st.button("Signaler un lien mort", key=f"dead_{chosen}",
+                                 help="L'annonce est fermée, ou le site carrière ne trouve plus le poste."):
+                        resultat = store.apply_link_verdicts(
+                            chosen, {current["link"]: Verdict(EXPIREE, "signalé depuis la fiche")})
+                        st.session_state["notice"] = ("Offre marquée expirée et rangée dans « Écarté »."
+                                                      if resultat == "ecartee" else "Offre marquée expirée.")
                         st.rerun()
                 with y:
                     st.caption(f"État du lien : {current['link_status']}" +
@@ -1037,6 +1104,12 @@ if page == "Tableau de bord":
         f"<div class='n'>{counts.get(s_, 0)}</div><div class='l'>{_esc(STATUS_LABELS.get(s_, s_))}</div></div>"
         for s_ in STATUSES)
     st.markdown(f"<div class='funnel'>{steps}</div>", unsafe_allow_html=True)
+
+    dead_open = df[(~df["is_closed"]) & (df["link_status"].isin(MORTS))] if not df.empty else df
+    if not dead_open.empty:
+        st.warning(f"{len(dead_open)} offre(s) en cours visent une annonce fermée ou introuvable : "
+                   + ", ".join(f"{r['company']} ({r['title'][:40]})" for _, r in dead_open.head(4).iterrows())
+                   + (" …" if len(dead_open) > 4 else "") + ". Ouvre la fiche pour décider.")
 
     col_main, col_side = st.columns([1.8, 1], gap="large")
     with col_main:

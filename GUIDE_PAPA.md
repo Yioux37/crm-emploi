@@ -12,6 +12,17 @@ Ce site est ton **carnet privé de recherche d'emploi** pour les postes de direc
 4. **Note ce que tu as fait.** Dans la fiche, indique le statut (A analyser, A postuler, Candidature envoyee, Entretien 1, etc.), une note et une **date de prochaine action**.
 5. **Va dans Relances.** C'est ta liste des appels, messages et suivis à faire aujourd'hui.
 
+## Offres expirées et liens qui ne mènent plus au poste
+
+À chaque « Rechercher de nouvelles offres », le CRM ouvre chaque offre en cours et vérifie qu'elle est encore ouverte. Il ne se contente plus de voir si la page répond : il repère aussi « les candidatures ne sont plus acceptées », les pages supprimées, et les liens qui retombent sur l'accueil du site carrière.
+
+- **Offre que tu n'avais pas encore traitée** : elle passe toute seule dans « Écarté », avec une note qui explique pourquoi.
+- **Offre où tu as déjà postulé** : rien ne bouge. Un bandeau rouge sur la fiche et une alerte sur le tableau de bord te préviennent.
+- **Lien mort, mais la même offre existe ailleurs** (LinkedIn, site de la maison) : le CRM remplace le lien par celui qui marche.
+- **« À vérifier »** : le site bloque les robots (FashionJobs, Jooble...). Le CRM ne conclut pas : ouvre le lien toi-même.
+
+Tu tombes quand même sur une annonce morte ? Ouvre la fiche et clique **« Signaler un lien mort »**. Le bouton **« Vérifier les liens des offres »**, dans la barre de gauche, relance le contrôle à tout moment.
+
 ## Que signifient les autres pages ?
 
 - **Signaux marché :** actualités d'entreprises (investissement, nouvelle manufacture, acquisition, nomination). Ce sont des **pistes de mise en relation**, pas des offres d'emploi. Lis l'article et vérifie sa date avant de contacter quelqu'un.
